@@ -2,7 +2,7 @@ use crate::Client;
 use crate::Error;
 
 use serde::de::DeserializeOwned;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
 struct KV2ResponseData<T> {
@@ -40,4 +40,45 @@ pub async fn get<T: DeserializeOwned>(
     };
 
     Ok(resp_body.data.data)
+}
+
+#[derive(Serialize, Debug)]
+struct UpdateOptions {
+    cas: Option<u16>,
+}
+
+#[derive(Serialize, Debug)]
+struct UpdatePayload<T> {
+    data: T,
+    options: Option<UpdateOptions>,
+}
+
+/// This function is used to update or set data for a given path
+/// in the kv2-mount in vault
+pub async fn update_set<T: Serialize>(
+    client: &mut Client,
+    mount: &str,
+    name: &str,
+    data: T,
+    cas: Option<u16>,
+) -> Result<(), Error> {
+    client.check_session().await;
+
+    let path = format!("{}/data/{}", mount, name);
+
+    let mut payload = UpdatePayload::<T> {
+        data: data,
+        options: None,
+    };
+    if cas.is_some() {
+        payload.options = Some(UpdateOptions { cas: cas });
+    }
+
+    match client
+        .vault_request::<UpdatePayload<T>>(reqwest::Method::POST, &path, Some(&payload))
+        .await
+    {
+        Err(e) => Err(e),
+        Ok(_) => Ok(()),
+    }
 }
