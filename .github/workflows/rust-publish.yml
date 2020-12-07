@@ -1,0 +1,21 @@
+name: Rust-Publish
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Cargo login
+      env:
+        API_KEY: ${{ secrets.CRATES_IO_KEY }}
+      run: |
+        cargo login "$API_KEY"
+    - name: Dry Run cargo publish
+      run: cargo publish --dry-run
+    - name: Publish
+      run: cargo pubish
