@@ -1,8 +1,12 @@
 [package]
 name = "hc-vault"
+description = "A simple crate to interact with hashicorp's vault"
+repository = "https://github.com/Lol3rrr/hc-vault"
 version = "0.1.0"
 authors = ["lol3rrr <s.loler03@gmail.com>"]
 edition = "2018"
+license-file = "LICENSE"
+keywords = ["hashicorp vault", "vault", "hashicorp"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
