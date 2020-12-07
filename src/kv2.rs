@@ -67,11 +67,11 @@ pub async fn update_set<T: Serialize>(
     let path = format!("{}/data/{}", mount, name);
 
     let mut payload = UpdatePayload::<T> {
-        data: data,
+        data,
         options: None,
     };
     if cas.is_some() {
-        payload.options = Some(UpdateOptions { cas: cas });
+        payload.options = Some(UpdateOptions { cas });
     }
 
     match client
