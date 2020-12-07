@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Tests before
+      run: cargo test
     - name: Cargo login
       env:
         API_KEY: ${{ secrets.CRATES_IO_KEY }}
