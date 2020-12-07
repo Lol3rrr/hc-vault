@@ -18,5 +18,4 @@ reqwest = { version = "0.10.9", features = ["json"] }
 [dev-dependencies]
 serde_json = { version = "1.0" }
 wiremock = { version = "0.3.0" }
-tokio-test = "*"
 tokio = { version = "0.2.23", features = ["full"] }
