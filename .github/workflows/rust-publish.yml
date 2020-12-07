@@ -20,4 +20,4 @@ jobs:
     - name: Dry Run cargo publish
       run: cargo publish --dry-run
     - name: Publish
-      run: cargo pubish
+      run: cargo publish
