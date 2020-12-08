@@ -61,6 +61,19 @@ impl fmt::Display for Error {
     }
 }
 
+/// This trait needs to be implemented by all auth backends to be used for
+/// authenticating using that backend
+pub trait Auth {
+    /// Checking if the current session is expired and needs to be renewed or dropped
+    fn is_expired(&self) -> bool;
+    /// Used to actually authenticate with the backend and obain a new valid session
+    /// that can be used for further requests to vault
+    fn auth(&mut self, vault_url: &str) -> Result<(), Error>;
+    /// Returns the vault token that can be used to make requests to vault
+    /// as the current session
+    fn get_token(&self) -> String;
+}
+
 impl From<url::ParseError> for Error {
     fn from(cause: url::ParseError) -> Error {
         Error::ParseError(cause)
@@ -72,109 +85,53 @@ impl From<reqwest::Error> for Error {
     }
 }
 
-enum AuthType {
-    Approle,
-    Token,
-}
-
 /// The Client struct represents a single Vault-Connection/Session that can be used for any
 /// further requests to vault
-pub struct Client {
+pub struct Client<T: Auth> {
     vault_url: String,
-    auth_type: AuthType,
-    approle: Option<approle::ApproleLogin>,
-
-    token: String,
-    token_start: Instant,
-    token_duration: Duration,
+    auth: std::sync::Mutex<T>,
 }
 
-impl Client {
-    /// This function is used to obtain a new vault session using the given approle
-    /// credentials
-    pub async fn new_approle(
+impl<T: Auth> Client<T> {
+    /// This function is used to obtain a new vault session with the given config and
+    /// auth settings
+    pub async fn new(
         vault_url: String,
+        auth_opts: T,
         role_id: String,
         secret_id: String,
-    ) -> Result<Client, Error> {
-        let approle = approle::ApproleLogin { role_id, secret_id };
+    ) -> Result<Client<T>, Error> {
+        let auth_mutex = std::sync::Mutex::new(auth_opts);
 
-        let auth_res = match approle::authenticate(&vault_url, &approle).await {
+        match auth_mutex.lock().unwrap().auth(&vault_url) {
             Err(e) => return Err(e),
-            Ok(s) => s,
+            Ok(()) => {}
         };
 
-        Ok(Client {
+        Ok(Client::<T> {
             vault_url,
-            auth_type: AuthType::Approle,
-            approle: Some(approle),
-            token: auth_res.auth.client_token,
-            token_start: Instant::now(),
-            token_duration: Duration::from_secs(auth_res.auth.lease_duration),
+            auth: auth_mutex,
         })
     }
 
-    /// This function is used to obtain a new vault session that uses the given token
-    /// as the authorization token when making requests to vault, the duration represents
-    /// how long the token is valid
-    pub async fn new_token(
-        vault_url: String,
-        token: String,
-        duration: u64,
-    ) -> Result<Client, Error> {
-        Ok(Client {
-            vault_url,
-            auth_type: AuthType::Token,
-            approle: None,
-            token,
-            token_start: Instant::now(),
-            token_duration: Duration::from_secs(duration),
-        })
-    }
+    async fn check_session(&self) -> Result<(), Error> {
+        let mut auth = self.auth.lock().unwrap();
 
-    /// Checks if the current session is expired.
-    ///
-    /// NOTE: This only checks for the duration to be expired and does not
-    /// actually check if the session has been revoked by vault
-    pub fn is_expired(&self) -> bool {
-        self.token_start.elapsed() >= self.token_duration
-    }
-
-    async fn check_session(&mut self) -> Result<(), Error> {
-        if !self.is_expired() {
+        if !auth.is_expired() {
             return Ok(());
         }
 
-        match self.auth_type {
-            AuthType::Approle => {
-                let auth =
-                    match approle::authenticate(&self.vault_url, self.approle.as_ref().unwrap())
-                        .await
-                    {
-                        Err(e) => {
-                            return Err(e);
-                        }
-                        Ok(n) => n,
-                    };
-
-                self.token = auth.auth.client_token;
-                self.token_start = Instant::now();
-                self.token_duration = Duration::from_secs(auth.auth.lease_duration);
-
-                Ok(())
-            }
-            AuthType::Token => Err(Error::SessionExpired),
-        }
+        return auth.auth(&self.vault_url);
     }
 
     /// This function is a general way to directly make requests to vault using
     /// the current session. This can be used to make custom requests or to make requests
     /// to mounts that are not directly covered by this crate.
-    pub async fn vault_request<T: Serialize>(
-        &mut self,
+    pub async fn vault_request<P: Serialize>(
+        &self,
         method: reqwest::Method,
         path: &str,
-        body: Option<&T>,
+        body: Option<&P>,
     ) -> Result<reqwest::Response, Error> {
         self.check_session().await?;
 
@@ -197,10 +154,16 @@ impl Client {
             Ok(u) => u,
         };
 
+        let token;
+        {
+            let auth = self.auth.lock().unwrap();
+            token = auth.get_token();
+        }
+
         let http_client = reqwest::Client::new();
         let mut req = http_client
             .request(method, url)
-            .header("X-Vault-Token", &self.token)
+            .header("X-Vault-Token", &token)
             .header("X-Vault-Request", "true");
 
         if body.is_some() {

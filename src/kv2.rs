@@ -1,3 +1,4 @@
+use crate::Auth;
 use crate::Client;
 use crate::Error;
 
@@ -26,7 +27,7 @@ pub struct Configuration {
 /// This function is used to configure the given kv2-mount with the provided
 /// configuration options
 pub async fn configure(
-    client: &mut Client,
+    client: &Client<impl Auth>,
     mount: &str,
     config: &Configuration,
 ) -> Result<(), Error> {
@@ -54,7 +55,7 @@ struct KV2Response<T> {
 /// This function is used to load data from the kv2-mount in vault.
 /// The data will be serialized into a struct from the provided type
 pub async fn get<T: DeserializeOwned>(
-    client: &mut Client,
+    client: &Client<impl Auth>,
     mount: &str,
     name: &str,
 ) -> Result<T, Error> {
@@ -93,7 +94,7 @@ struct UpdatePayload<T> {
 /// This function is used to update or set data for a given path
 /// in the kv2-mount in vault
 pub async fn update_set<T: Serialize>(
-    client: &mut Client,
+    client: &Client<impl Auth>,
     mount: &str,
     name: &str,
     data: T,
