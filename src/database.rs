@@ -41,8 +41,6 @@ impl PartialEq for DatabaseCreds {
 
 /// This function is used to actually load the Database credentials from vault
 pub async fn get_credentials(client: &mut Client, name: &str) -> Result<DatabaseCreds, Error> {
-    client.check_session().await;
-
     let path = format!("database/creds/{}", name);
     let response = match client
         .vault_request::<String>(reqwest::Method::GET, &path, None)

@@ -20,6 +20,13 @@ pub enum Error {
     ParseError(url::ParseError),
     /// ReqwestError is returned when the request made to vault itself fails
     ReqwestError(reqwest::Error),
+    /// InvalidRequest is returned when the made to vault was missing data or was invalid/
+    /// malformed data and therefore was rejected by vault before doing anything
+    InvalidRequest,
+    /// IsSealed is returned when the given vault instance is not available because it
+    /// is currently sealed and therefore does not accept or handle any requests other
+    /// than to unseal it
+    IsSealed,
     /// NotFound is returned when the given vault endpoint/path was not found on the
     /// actual vault instance that you are connected to
     NotFound,
@@ -27,6 +34,10 @@ pub enum Error {
     /// been renewed or when the credentials for login are not valid and therefore rejected
     /// or when you try to access something that you dont have the permissions to do so
     Unauthorized,
+    /// SessionExpired is returned when the session you tried to use is expired and was
+    /// configured to not automatically obtain a new session, when it notices that the
+    /// current one is expired
+    SessionExpired,
     /// Other simply represents all other errors that could not be grouped into on the other
     /// categories listed above
     Other,
@@ -37,8 +48,14 @@ impl fmt::Display for Error {
         match *self {
             Error::ParseError(ref cause) => write!(f, "Parse Error: {}", cause),
             Error::ReqwestError(ref cause) => write!(f, "Reqwest Error: {}", cause),
+            Error::InvalidRequest => write!(f, "Invalid Request: Invalid or Missing data"),
+            Error::IsSealed => write!(
+                f,
+                "The Vault instance is still sealed and can't be used at the moment"
+            ),
             Error::NotFound => write!(f, "Not Found"),
             Error::Unauthorized => write!(f, "Unauthorized"),
+            Error::SessionExpired => write!(f, "Session has expired, no auto login"),
             Error::Other => write!(f, "Unknown error"),
         }
     }
@@ -123,9 +140,9 @@ impl Client {
         self.token_start.elapsed() >= self.token_duration
     }
 
-    async fn check_session(&mut self) {
+    async fn check_session(&mut self) -> Result<(), Error> {
         if !self.is_expired() {
-            return;
+            return Ok(());
         }
 
         match self.auth_type {
@@ -135,8 +152,7 @@ impl Client {
                         .await
                     {
                         Err(e) => {
-                            println!("Getting new Approle-Session: {}", e);
-                            return;
+                            return Err(e);
                         }
                         Ok(n) => n,
                     };
@@ -144,10 +160,10 @@ impl Client {
                 self.token = auth.auth.client_token;
                 self.token_start = Instant::now();
                 self.token_duration = Duration::from_secs(auth.auth.lease_duration);
+
+                Ok(())
             }
-            AuthType::Token => {
-                println!("Cant renew raw token session");
-            }
+            AuthType::Token => Err(Error::SessionExpired),
         }
     }
 
@@ -155,11 +171,13 @@ impl Client {
     /// the current session. This can be used to make custom requests or to make requests
     /// to mounts that are not directly covered by this crate.
     pub async fn vault_request<T: Serialize>(
-        &self,
+        &mut self,
         method: reqwest::Method,
         path: &str,
         body: Option<&T>,
     ) -> Result<reqwest::Response, Error> {
+        self.check_session().await?;
+
         let mut url = match Url::parse(&self.vault_url) {
             Err(e) => {
                 return Err(Error::from(e));
@@ -182,7 +200,8 @@ impl Client {
         let http_client = reqwest::Client::new();
         let mut req = http_client
             .request(method, url)
-            .header("X-Vault-Token", &self.token);
+            .header("X-Vault-Token", &self.token)
+            .header("X-Vault-Request", "true");
 
         if body.is_some() {
             req = req.json(body.unwrap());
@@ -196,9 +215,11 @@ impl Client {
         let status_code = resp.status().as_u16();
 
         match status_code {
-            200 => Ok(resp),
-            401 | 403 => Err(Error::Unauthorized),
+            200 | 204 => Ok(resp),
+            400 => Err(Error::InvalidRequest),
+            403 => Err(Error::Unauthorized),
             404 => Err(Error::NotFound),
+            503 => Err(Error::IsSealed),
             _ => Err(Error::Other),
         }
     }

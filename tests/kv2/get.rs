@@ -28,7 +28,7 @@ impl PartialEq for KV2Data {
 }
 
 #[tokio::test]
-async fn valid_getkv2() {
+async fn valid_get() {
     let mock_server = MockServer::start().await;
 
     let client_token = "testToken";

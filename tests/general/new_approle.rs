@@ -125,32 +125,3 @@ async fn invalid_new_approle_not_valid_403() {
         Ok(_) => assert!(false, "Should return error"),
     };
 }
-#[tokio::test]
-async fn invalid_new_approle_not_valid_401() {
-    let mock_server = MockServer::start().await;
-
-    let test_role_id = "testID".to_string();
-    let test_secret_id = "testSecret".to_string();
-
-    let expected_body = json!({
-        "role_id": test_role_id.clone(),
-        "secret_id": test_secret_id.clone(),
-    });
-
-    let response = ResponseTemplate::new(403);
-
-    Mock::given(method("POST"))
-        .and(path("/v1/auth/approle/login"))
-        .and(body_json(&expected_body))
-        .respond_with(response)
-        .mount(&mock_server)
-        .await;
-
-    let res =
-        hc_vault::Client::new_approle(mock_server.uri().clone(), test_role_id, test_secret_id)
-            .await;
-    match res {
-        Err(_) => assert!(true),
-        Ok(_) => assert!(false, "Should return error"),
-    };
-}

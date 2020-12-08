@@ -21,8 +21,6 @@ pub async fn get<T: DeserializeOwned>(
     mount: &str,
     name: &str,
 ) -> Result<T, Error> {
-    client.check_session().await;
-
     let path = format!("{}/data/{}", mount, name);
     let response = match client
         .vault_request::<String>(reqwest::Method::GET, &path, None)
@@ -62,8 +60,6 @@ pub async fn update_set<T: Serialize>(
     data: T,
     cas: Option<u16>,
 ) -> Result<(), Error> {
-    client.check_session().await;
-
     let path = format!("{}/data/{}", mount, name);
 
     let mut payload = UpdatePayload::<T> {
