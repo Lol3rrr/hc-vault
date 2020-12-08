@@ -115,15 +115,24 @@ impl Client {
         })
     }
 
+    /// Checks if the current session is expired.
+    ///
+    /// NOTE: This only checks for the duration to be expired and does not
+    /// actually check if the session has been revoked by vault
+    pub fn is_expired(&self) -> bool {
+        self.token_start.elapsed() >= self.token_duration
+    }
+
     async fn check_session(&mut self) {
-        if self.token_start.elapsed() >= self.token_duration {
-            match self.auth_type {
-                AuthType::Approle => {
-                    let auth = match approle::authenticate(
-                        &self.vault_url,
-                        self.approle.as_ref().unwrap(),
-                    )
-                    .await
+        if !self.is_expired() {
+            return;
+        }
+
+        match self.auth_type {
+            AuthType::Approle => {
+                let auth =
+                    match approle::authenticate(&self.vault_url, self.approle.as_ref().unwrap())
+                        .await
                     {
                         Err(e) => {
                             println!("Getting new Approle-Session: {}", e);
@@ -132,13 +141,12 @@ impl Client {
                         Ok(n) => n,
                     };
 
-                    self.token = auth.auth.client_token;
-                    self.token_start = Instant::now();
-                    self.token_duration = Duration::from_secs(auth.auth.lease_duration);
-                }
-                AuthType::Token => {
-                    println!("Cant renew raw token session");
-                }
+                self.token = auth.auth.client_token;
+                self.token_start = Instant::now();
+                self.token_duration = Duration::from_secs(auth.auth.lease_duration);
+            }
+            AuthType::Token => {
+                println!("Cant renew raw token session");
             }
         }
     }
