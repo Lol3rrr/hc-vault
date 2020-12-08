@@ -42,12 +42,14 @@ pub async fn get<T: DeserializeOwned>(
 
 #[derive(Serialize, Debug)]
 struct UpdateOptions {
+    #[serde(skip_serializing_if = "Option::is_none")]
     cas: Option<u16>,
 }
 
 #[derive(Serialize, Debug)]
 struct UpdatePayload<T> {
     data: T,
+    #[serde(skip_serializing_if = "Option::is_none")]
     options: Option<UpdateOptions>,
 }
 

@@ -9,4 +9,5 @@ mod general {
 
 mod kv2 {
     mod get;
+    mod update_set;
 }
