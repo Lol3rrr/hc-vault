@@ -4,14 +4,51 @@ use crate::Error;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 
+/// Configuration describes the configuration for a single kv2-mount
+#[derive(Serialize)]
+pub struct Configuration {
+    /// Whether or not all keys are required to have the 'cas' option
+    /// set when updating/writing to them
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cas_required: Option<bool>,
+
+    /// If set, this specifies the duration for which a version is held,
+    /// older versions than described will be dropped
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub delete_version_after: Option<String>,
+
+    /// The Number of Versions that should be kept at any given time
+    /// if this number is exceeded, the oldest versions are dropped
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_versions: Option<u32>,
+}
+
+/// This function is used to configure the given kv2-mount with the provided
+/// configuration options
+pub async fn configure(
+    client: &mut Client,
+    mount: &str,
+    config: &Configuration,
+) -> Result<(), Error> {
+    let path = format!("{}/config", mount);
+
+    match client
+        .vault_request::<Configuration>(reqwest::Method::POST, &path, Some(config))
+        .await
+    {
+        Err(e) => Err(e),
+        Ok(_) => Ok(()),
+    }
+}
+
 #[derive(Deserialize)]
-struct KV2ResponseData<T> {
+struct ResponseData<T> {
     data: T,
 }
 
 #[derive(Deserialize)]
 struct KV2Response<T> {
-    data: KV2ResponseData<T>,
+    data: ResponseData<T>,
 }
 
 /// This function is used to load data from the kv2-mount in vault.

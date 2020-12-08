@@ -8,6 +8,7 @@ mod general {
 }
 
 mod kv2 {
+    mod configure;
     mod get;
     mod update_set;
 }
