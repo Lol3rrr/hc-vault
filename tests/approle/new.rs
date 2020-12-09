@@ -1,10 +1,14 @@
 extern crate hc_vault;
 
+use async_std::task;
+
 use wiremock::matchers::{body_json, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use serde::Serialize;
 use serde_json::json;
+
+use hc_vault::Auth as AuthTrait;
 
 #[derive(Serialize)]
 struct ApproleAuthResponse {
@@ -23,9 +27,9 @@ struct ApproleResponse {
     lease_id: String,
 }
 
-#[tokio::test]
-async fn valid_new_approle() {
-    let mock_server = MockServer::start().await;
+#[test]
+fn valid_new_approle() {
+    let mock_server = task::block_on(MockServer::start());
 
     let test_role_id = "testID".to_string();
     let test_secret_id = "testSecret".to_string();
@@ -50,25 +54,31 @@ async fn valid_new_approle() {
     let mut response = ResponseTemplate::new(200);
     response = response.set_body_json(response_body);
 
-    Mock::given(method("POST"))
-        .and(path("/v1/auth/approle/login"))
-        .and(body_json(&expected_body))
-        .respond_with(response)
-        .mount(&mock_server)
-        .await;
+    task::block_on(
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/approle/login"))
+            .and(body_json(&expected_body))
+            .respond_with(response)
+            .mount(&mock_server),
+    );
 
-    let res =
-        hc_vault::Client::new_approle(mock_server.uri().clone(), test_role_id, test_secret_id)
-            .await;
-    match res {
+    let mut tmp_auth = match hc_vault::approle::Session::new(test_role_id, test_secret_id) {
+        Err(e) => {
+            assert!(false, "Should not return error: '{}'", e);
+            return;
+        }
+        Ok(s) => s,
+    };
+
+    match tmp_auth.auth(&mock_server.uri()) {
         Err(e) => assert!(false, "Should not return error: '{}'", e),
         Ok(_) => assert!(true),
     };
 }
 
-#[tokio::test]
-async fn invalid_new_approle_not_found() {
-    let mock_server = MockServer::start().await;
+#[test]
+fn invalid_new_approle_not_found() {
+    let mock_server = task::block_on(MockServer::start());
 
     let test_role_id = "testID".to_string();
     let test_secret_id = "testSecret".to_string();
@@ -80,25 +90,31 @@ async fn invalid_new_approle_not_found() {
 
     let response = ResponseTemplate::new(404);
 
-    Mock::given(method("POST"))
-        .and(path("/v1/auth/approle/login"))
-        .and(body_json(&expected_body))
-        .respond_with(response)
-        .mount(&mock_server)
-        .await;
+    task::block_on(
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/approle/login"))
+            .and(body_json(&expected_body))
+            .respond_with(response)
+            .mount(&mock_server),
+    );
 
-    let res =
-        hc_vault::Client::new_approle(mock_server.uri().clone(), test_role_id, test_secret_id)
-            .await;
-    match res {
+    let mut tmp_auth = match hc_vault::approle::Session::new(test_role_id, test_secret_id) {
+        Err(e) => {
+            assert!(false, "Should not return error: '{}'", e);
+            return;
+        }
+        Ok(s) => s,
+    };
+
+    match tmp_auth.auth(&mock_server.uri()) {
         Err(_) => assert!(true),
         Ok(_) => assert!(false, "Should return error"),
     };
 }
 
-#[tokio::test]
-async fn invalid_new_approle_not_valid_403() {
-    let mock_server = MockServer::start().await;
+#[test]
+fn invalid_new_approle_not_valid_403() {
+    let mock_server = task::block_on(MockServer::start());
 
     let test_role_id = "testID".to_string();
     let test_secret_id = "testSecret".to_string();
@@ -110,17 +126,23 @@ async fn invalid_new_approle_not_valid_403() {
 
     let response = ResponseTemplate::new(403);
 
-    Mock::given(method("POST"))
-        .and(path("/v1/auth/approle/login"))
-        .and(body_json(&expected_body))
-        .respond_with(response)
-        .mount(&mock_server)
-        .await;
+    task::block_on(
+        Mock::given(method("POST"))
+            .and(path("/v1/auth/approle/login"))
+            .and(body_json(&expected_body))
+            .respond_with(response)
+            .mount(&mock_server),
+    );
 
-    let res =
-        hc_vault::Client::new_approle(mock_server.uri().clone(), test_role_id, test_secret_id)
-            .await;
-    match res {
+    let mut tmp_auth = match hc_vault::approle::Session::new(test_role_id, test_secret_id) {
+        Err(e) => {
+            assert!(false, "Should not return error: '{}'", e);
+            return;
+        }
+        Ok(s) => s,
+    };
+
+    match tmp_auth.auth(&mock_server.uri()) {
         Err(_) => assert!(true),
         Ok(_) => assert!(false, "Should return error"),
     };

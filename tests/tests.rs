@@ -1,9 +1,12 @@
+mod approle {
+    mod new;
+}
+
 mod database {
     mod get_credentials;
 }
 
 mod general {
-    mod new_approle;
     mod vault_request;
 }
 

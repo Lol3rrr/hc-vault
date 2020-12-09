@@ -30,7 +30,7 @@ async fn valid_update_set_no_options() {
 
     let auth =
         hc_vault::token::Session::new(client_token.to_string(), Duration::from_secs(120)).unwrap();
-    let mut client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
+    let client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -76,7 +76,7 @@ async fn valid_update_set_with_options() {
 
     let auth =
         hc_vault::token::Session::new(client_token.to_string(), Duration::from_secs(120)).unwrap();
-    let mut client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
+    let client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
