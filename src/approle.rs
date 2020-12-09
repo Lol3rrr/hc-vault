@@ -14,10 +14,9 @@ pub struct ApproleLogin {
     pub secret_id: String,
 }
 
-/// The Auth part itself of the approle login response
 #[allow(dead_code)]
 #[derive(Deserialize)]
-pub struct Auth {
+struct Auth {
     /// Whether or not the auth-session is renewable
     pub renewable: bool,
     /// The duration for which this session is valid
@@ -31,10 +30,9 @@ pub struct Auth {
     pub client_token: String,
 }
 
-/// The Response returned by vault for authorizing using approle
 #[allow(dead_code)]
 #[derive(Deserialize)]
-pub struct ApproleResponse {
+struct ApproleResponse {
     /// The actual auth content
     pub auth: Auth,
     /// The duration for which this lease is valid
