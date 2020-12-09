@@ -30,7 +30,7 @@ async fn valid_configure_no_options() {
 
     let auth =
         hc_vault::token::Session::new(client_token.to_string(), Duration::from_secs(120)).unwrap();
-    let mut client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
+    let client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -38,7 +38,7 @@ async fn valid_configure_no_options() {
         Ok(s) => s,
     };
 
-    match hc_vault::kv2::configure(&mut client, "kv", &options).await {
+    match hc_vault::kv2::configure(&client, "kv", &options).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
         }
@@ -74,7 +74,7 @@ async fn valid_configure_only_max_verison_option() {
 
     let auth =
         hc_vault::token::Session::new(client_token.to_string(), Duration::from_secs(120)).unwrap();
-    let mut client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
+    let client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -82,7 +82,7 @@ async fn valid_configure_only_max_verison_option() {
         Ok(s) => s,
     };
 
-    match hc_vault::kv2::configure(&mut client, "kv", &options).await {
+    match hc_vault::kv2::configure(&client, "kv", &options).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
         }
@@ -118,7 +118,7 @@ async fn valid_configure_only_cas_required_option() {
 
     let auth =
         hc_vault::token::Session::new(client_token.to_string(), Duration::from_secs(120)).unwrap();
-    let mut client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
+    let client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -126,7 +126,7 @@ async fn valid_configure_only_cas_required_option() {
         Ok(s) => s,
     };
 
-    match hc_vault::kv2::configure(&mut client, "kv", &options).await {
+    match hc_vault::kv2::configure(&client, "kv", &options).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
         }
@@ -162,7 +162,7 @@ async fn valid_configure_only_delete_version_after_option() {
 
     let auth =
         hc_vault::token::Session::new(client_token.to_string(), Duration::from_secs(120)).unwrap();
-    let mut client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
+    let client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -170,7 +170,7 @@ async fn valid_configure_only_delete_version_after_option() {
         Ok(s) => s,
     };
 
-    match hc_vault::kv2::configure(&mut client, "kv", &options).await {
+    match hc_vault::kv2::configure(&client, "kv", &options).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
         }
@@ -208,7 +208,7 @@ async fn valid_configure_all_options() {
 
     let auth =
         hc_vault::token::Session::new(client_token.to_string(), Duration::from_secs(120)).unwrap();
-    let mut client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
+    let client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -216,7 +216,7 @@ async fn valid_configure_all_options() {
         Ok(s) => s,
     };
 
-    match hc_vault::kv2::configure(&mut client, "kv", &options).await {
+    match hc_vault::kv2::configure(&client, "kv", &options).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
         }

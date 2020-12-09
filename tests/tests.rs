@@ -1,5 +1,5 @@
 mod approle {
-    mod new;
+    mod auth;
 }
 
 mod database {
@@ -13,5 +13,6 @@ mod general {
 mod kv2 {
     mod configure;
     mod get;
+    mod get_configuration;
     mod update_set;
 }
