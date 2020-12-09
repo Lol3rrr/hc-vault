@@ -5,6 +5,8 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use serde_json::json;
 
+use std::time::Duration;
+
 #[tokio::test]
 async fn valid_vault_request_no_body() {
     let mock_server = MockServer::start().await;
@@ -22,14 +24,15 @@ async fn valid_vault_request_no_body() {
         .mount(&mock_server)
         .await;
 
-    let mut client =
-        match hc_vault::Client::new_token(mock_server.uri(), "testToken".to_string(), 120).await {
-            Err(e) => {
-                assert!(false, "Should not return error: {}", e);
-                return;
-            }
-            Ok(c) => c,
-        };
+    let auth =
+        hc_vault::token::Session::new("testToken".to_string(), Duration::from_secs(120)).unwrap();
+    let mut client = match hc_vault::Client::new(mock_server.uri(), auth).await {
+        Err(e) => {
+            assert!(false, "Should not return error: {}", e);
+            return;
+        }
+        Ok(c) => c,
+    };
 
     match client
         .vault_request::<String>(req_method, req_path, None)
@@ -66,14 +69,15 @@ async fn valid_vault_request_with_body() {
         .mount(&mock_server)
         .await;
 
-    let mut client =
-        match hc_vault::Client::new_token(mock_server.uri(), "testToken".to_string(), 120).await {
-            Err(e) => {
-                assert!(false, "Should not return error: {}", e);
-                return;
-            }
-            Ok(c) => c,
-        };
+    let auth =
+        hc_vault::token::Session::new("testToken".to_string(), Duration::from_secs(120)).unwrap();
+    let mut client = match hc_vault::Client::new(mock_server.uri(), auth).await {
+        Err(e) => {
+            assert!(false, "Should not return error: {}", e);
+            return;
+        }
+        Ok(c) => c,
+    };
 
     match client
         .vault_request(req_method, req_path, Some(&req_body))

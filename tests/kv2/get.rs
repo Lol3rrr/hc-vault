@@ -4,6 +4,7 @@ use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use serde::{Deserialize, Serialize};
+use std::time::Duration;
 
 #[derive(Serialize)]
 struct KV2ResponseData<T> {
@@ -49,18 +50,17 @@ async fn valid_get() {
         .mount(&mock_server)
         .await;
 
-    let mut client =
-        match hc_vault::Client::new_token(mock_server.uri().clone(), client_token.to_string(), 120)
-            .await
-        {
-            Err(e) => {
-                assert!(false, "Should not return error: '{}'", e);
-                return;
-            }
-            Ok(s) => s,
-        };
+    let auth =
+        hc_vault::token::Session::new(client_token.to_string(), Duration::from_secs(120)).unwrap();
+    let mut client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
+        Err(e) => {
+            assert!(false, "Should not return error: '{}'", e);
+            return;
+        }
+        Ok(s) => s,
+    };
 
-    let data = match hc_vault::kv2::get::<KV2Data>(&mut client, "kv", "test").await {
+    let data: KV2Data = match hc_vault::kv2::get(&client, "kv", "test").await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;

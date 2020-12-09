@@ -36,16 +36,15 @@ async fn valid_get_credentials() {
         .mount(&mock_server)
         .await;
 
-    let mut client =
-        match hc_vault::Client::new_token(mock_server.uri().clone(), client_token.to_string(), 120)
-            .await
-        {
-            Err(e) => {
-                assert!(false, "Should not return error: '{}'", e);
-                return;
-            }
-            Ok(s) => s,
-        };
+    let auth =
+        hc_vault::token::Session::new(client_token.to_string(), Duration::from_secs(120)).unwrap();
+    let mut client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
+        Err(e) => {
+            assert!(false, "Should not return error: '{}'", e);
+            return;
+        }
+        Ok(s) => s,
+    };
 
     let data = match hc_vault::database::get_credentials(&mut client, "test_db").await {
         Err(e) => {

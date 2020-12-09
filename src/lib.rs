@@ -7,10 +7,12 @@ pub mod approle;
 pub mod database;
 /// The kv2 module is used for all interactions with the v2 key-value backend in vault
 pub mod kv2;
+/// The token module is used for all basic interactions with a simple client-token and no other
+/// backend
+pub mod token;
 
 use serde::Serialize;
 use std::fmt;
-use std::time::{Duration, Instant};
 use url::Url;
 
 /// The Error
@@ -95,12 +97,7 @@ pub struct Client<T: Auth> {
 impl<T: Auth> Client<T> {
     /// This function is used to obtain a new vault session with the given config and
     /// auth settings
-    pub async fn new(
-        vault_url: String,
-        auth_opts: T,
-        role_id: String,
-        secret_id: String,
-    ) -> Result<Client<T>, Error> {
+    pub async fn new(vault_url: String, auth_opts: T) -> Result<Client<T>, Error> {
         let auth_mutex = std::sync::Mutex::new(auth_opts);
 
         match auth_mutex.lock().unwrap().auth(&vault_url) {
