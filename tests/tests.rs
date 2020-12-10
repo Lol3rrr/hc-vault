@@ -16,5 +16,6 @@ mod kv2 {
     mod delete_versions;
     mod get;
     mod get_configuration;
+    mod undelete_versions;
     mod update_set;
 }
