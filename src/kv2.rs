@@ -95,8 +95,14 @@ pub async fn get<T: DeserializeOwned>(
     client: &Client<impl Auth>,
     mount: &str,
     name: &str,
+    version: Option<u32>,
 ) -> Result<T, Error> {
-    let path = format!("{}/data/{}", mount, name);
+    let mut version_adding = "".to_string();
+    if version.is_some() {
+        version_adding = format!("?version={}", version.unwrap().to_string());
+    }
+
+    let path = format!("{}/data/{}{}", mount, name, &version_adding);
     let response = match client
         .vault_request::<String>(reqwest::Method::GET, &path, None)
         .await
