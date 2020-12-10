@@ -229,3 +229,29 @@ pub async fn undelete_versions(
         Ok(_) => Ok(()),
     }
 }
+
+#[derive(Serialize)]
+struct DestroyVersionsBody {
+    versions: Vec<u32>,
+}
+
+/// Permanently removes/deletes the given versions with no way to recover
+/// the data after this operation has completed
+pub async fn destroy_versions(
+    client: &Client<impl Auth>,
+    mount: &str,
+    name: &str,
+    versions: Vec<u32>,
+) -> Result<(), Error> {
+    let path = format!("{}/destroy/{}", mount, name);
+
+    let req_body = DestroyVersionsBody { versions: versions };
+
+    match client
+        .vault_request::<DestroyVersionsBody>(reqwest::Method::POST, &path, Some(&req_body))
+        .await
+    {
+        Err(e) => Err(e),
+        Ok(_) => Ok(()),
+    }
+}
