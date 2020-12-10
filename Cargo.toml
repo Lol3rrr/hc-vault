@@ -5,7 +5,7 @@ repository = "https://github.com/Lol3rrr/hc-vault"
 version = "0.1.1"
 authors = ["lol3rrr <s.loler03@gmail.com>"]
 edition = "2018"
-license-file = "LICENSE"
+license = "MIT"
 keywords = ["vault", "hashicorp"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
