@@ -176,3 +176,29 @@ pub async fn delete(client: &Client<impl Auth>, mount: &str, name: &str) -> Resu
         Ok(_) => Ok(()),
     }
 }
+
+#[derive(Serialize)]
+struct DeleteVersionsBody {
+    versions: Vec<u32>,
+}
+
+/// Issues a soft delete, similiar to the delete function, for all the given
+/// versions
+pub async fn delete_versions(
+    client: &Client<impl Auth>,
+    mount: &str,
+    name: &str,
+    versions: Vec<u32>,
+) -> Result<(), Error> {
+    let path = format!("{}/delete/{}", mount, name);
+
+    let req_body = DeleteVersionsBody { versions: versions };
+
+    match client
+        .vault_request::<DeleteVersionsBody>(reqwest::Method::POST, &path, Some(&req_body))
+        .await
+    {
+        Err(e) => Err(e),
+        Ok(_) => Ok(()),
+    }
+}

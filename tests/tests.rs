@@ -13,6 +13,7 @@ mod general {
 mod kv2 {
     mod configure;
     mod delete;
+    mod delete_versions;
     mod get;
     mod get_configuration;
     mod update_set;

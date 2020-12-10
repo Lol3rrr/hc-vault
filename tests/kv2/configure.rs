@@ -25,6 +25,7 @@ async fn valid_configure_no_options() {
         .and(header("X-Vault-Token", client_token))
         .and(body_json(&req_body))
         .respond_with(ResponseTemplate::new(200))
+        .expect(1)
         .mount(&mock_server)
         .await;
 
@@ -69,6 +70,7 @@ async fn valid_configure_only_max_verison_option() {
         .and(header("X-Vault-Token", client_token))
         .and(body_json(&req_body))
         .respond_with(ResponseTemplate::new(200))
+        .expect(1)
         .mount(&mock_server)
         .await;
 
@@ -113,6 +115,7 @@ async fn valid_configure_only_cas_required_option() {
         .and(header("X-Vault-Token", client_token))
         .and(body_json(&req_body))
         .respond_with(ResponseTemplate::new(200))
+        .expect(1)
         .mount(&mock_server)
         .await;
 
@@ -157,6 +160,7 @@ async fn valid_configure_only_delete_version_after_option() {
         .and(header("X-Vault-Token", client_token))
         .and(body_json(&req_body))
         .respond_with(ResponseTemplate::new(200))
+        .expect(1)
         .mount(&mock_server)
         .await;
 
@@ -203,6 +207,7 @@ async fn valid_configure_all_options() {
         .and(header("X-Vault-Token", client_token))
         .and(body_json(req_body))
         .respond_with(ResponseTemplate::new(200))
+        .expect(1)
         .mount(&mock_server)
         .await;
 

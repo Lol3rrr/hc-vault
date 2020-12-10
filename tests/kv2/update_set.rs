@@ -25,6 +25,7 @@ async fn valid_update_set_no_options() {
         .and(header("X-Vault-Token", client_token))
         .and(body_json(&req_body))
         .respond_with(ResponseTemplate::new(200))
+        .expect(1)
         .mount(&mock_server)
         .await;
 
@@ -71,6 +72,7 @@ async fn valid_update_set_with_options() {
         .and(header("X-Vault-Token", client_token))
         .and(body_json(&req_body))
         .respond_with(ResponseTemplate::new(200))
+        .expect(1)
         .mount(&mock_server)
         .await;
 

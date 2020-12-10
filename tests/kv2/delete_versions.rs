@@ -1,19 +1,27 @@
 extern crate hc_vault;
 
-use wiremock::matchers::{header, method, path};
+use wiremock::matchers::{body_json, header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+use serde_json::json;
 use std::time::Duration;
 
 #[tokio::test]
-async fn valid_delete() {
+async fn valid_delete_versions() {
     let mock_server = MockServer::start().await;
 
     let client_token = "testToken";
 
-    Mock::given(method("DELETE"))
-        .and(path("/v1/kv/data/test"))
+    let req_body = json!({
+        "versions": [
+            0, 4, 6
+        ]
+    });
+
+    Mock::given(method("POST"))
+        .and(path("/v1/kv/delete/test"))
         .and(header("X-Vault-Token", client_token))
+        .and(body_json(&req_body))
         .respond_with(ResponseTemplate::new(200))
         .expect(1)
         .mount(&mock_server)
@@ -29,7 +37,7 @@ async fn valid_delete() {
         Ok(s) => s,
     };
 
-    match hc_vault::kv2::delete(&client, "kv", "test").await {
+    match hc_vault::kv2::delete_versions(&client, "kv", "test", vec![0, 4, 6]).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
         }
