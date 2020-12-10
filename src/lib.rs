@@ -63,6 +63,17 @@ impl fmt::Display for Error {
     }
 }
 
+impl From<url::ParseError> for Error {
+    fn from(cause: url::ParseError) -> Error {
+        Error::ParseError(cause)
+    }
+}
+impl From<reqwest::Error> for Error {
+    fn from(cause: reqwest::Error) -> Error {
+        Error::ReqwestError(cause)
+    }
+}
+
 /// This trait needs to be implemented by all auth backends to be used for
 /// authenticating using that backend
 pub trait Auth {
@@ -76,14 +87,34 @@ pub trait Auth {
     fn get_token(&self) -> String;
 }
 
-impl From<url::ParseError> for Error {
-    fn from(cause: url::ParseError) -> Error {
-        Error::ParseError(cause)
-    }
+/// The RenewPolicy describes how the vault client should deal with expired
+/// vault session
+pub enum RenewPolicy {
+    /// Reauth causes the vault client to acquire a completly new vault session, via the
+    /// provided auth config, if the old one expired. This is a lazy operation,
+    /// so it only checks if it needs a new session before making a request
+    Reauth,
+    /// Nothing does nothing when the session expires. This will cause the client to always
+    /// return a SessionExpired error when trying to request anything from vault
+    Nothing,
 }
-impl From<reqwest::Error> for Error {
-    fn from(cause: reqwest::Error) -> Error {
-        Error::ReqwestError(cause)
+
+/// The Configuration for the vault client
+pub struct Config {
+    /// The URL the client should use to connect to the vault instance
+    pub vault_url: String,
+    /// The Policy the client should use to handle sessions expiring
+    ///
+    /// Default: RenewPolicy::Reauth
+    pub renew_policy: RenewPolicy,
+}
+
+impl Default for Config {
+    fn default() -> Config {
+        Config {
+            vault_url: "http://localhost:8200".to_string(),
+            renew_policy: RenewPolicy::Reauth,
+        }
     }
 }
 
