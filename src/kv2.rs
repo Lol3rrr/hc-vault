@@ -192,7 +192,7 @@ pub async fn delete_versions(
 ) -> Result<(), Error> {
     let path = format!("{}/delete/{}", mount, name);
 
-    let req_body = DeleteVersionsBody { versions: versions };
+    let req_body = DeleteVersionsBody { versions };
 
     match client
         .vault_request::<DeleteVersionsBody>(reqwest::Method::POST, &path, Some(&req_body))
@@ -219,7 +219,7 @@ pub async fn undelete_versions(
 ) -> Result<(), Error> {
     let path = format!("{}/undelete/{}", mount, name);
 
-    let req_body = UndeleteVersionsBody { versions: versions };
+    let req_body = UndeleteVersionsBody { versions };
 
     match client
         .vault_request::<UndeleteVersionsBody>(reqwest::Method::POST, &path, Some(&req_body))
@@ -245,7 +245,7 @@ pub async fn destroy_versions(
 ) -> Result<(), Error> {
     let path = format!("{}/destroy/{}", mount, name);
 
-    let req_body = DestroyVersionsBody { versions: versions };
+    let req_body = DestroyVersionsBody { versions };
 
     match client
         .vault_request::<DestroyVersionsBody>(reqwest::Method::POST, &path, Some(&req_body))
