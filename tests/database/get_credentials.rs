@@ -38,7 +38,11 @@ async fn valid_get_credentials() {
 
     let auth =
         hc_vault::token::Session::new(client_token.to_string(), Duration::from_secs(120)).unwrap();
-    let mut client = match hc_vault::Client::new(mock_server.uri().clone(), auth).await {
+    let conf = hc_vault::Config {
+        vault_url: mock_server.uri().clone(),
+        ..Default::default()
+    };
+    let mut client = match hc_vault::Client::new(conf, auth).await {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;

@@ -121,23 +121,23 @@ impl Default for Config {
 /// The Client struct represents a single Vault-Connection/Session that can be used for any
 /// further requests to vault
 pub struct Client<T: Auth> {
-    vault_url: String,
+    config: Config,
     auth: std::sync::Mutex<T>,
 }
 
 impl<T: Auth> Client<T> {
     /// This function is used to obtain a new vault session with the given config and
     /// auth settings
-    pub async fn new(vault_url: String, auth_opts: T) -> Result<Client<T>, Error> {
+    pub async fn new(conf: Config, auth_opts: T) -> Result<Client<T>, Error> {
         let auth_mutex = std::sync::Mutex::new(auth_opts);
 
-        match auth_mutex.lock().unwrap().auth(&vault_url) {
+        match auth_mutex.lock().unwrap().auth(&conf.vault_url) {
             Err(e) => return Err(e),
             Ok(()) => {}
         };
 
         Ok(Client::<T> {
-            vault_url,
+            config: conf,
             auth: auth_mutex,
         })
     }
@@ -148,8 +148,10 @@ impl<T: Auth> Client<T> {
         if !auth.is_expired() {
             return Ok(());
         }
-
-        return auth.auth(&self.vault_url);
+        match self.config.renew_policy {
+            RenewPolicy::Reauth => auth.auth(&self.config.vault_url),
+            RenewPolicy::Nothing => Err(Error::SessionExpired),
+        }
     }
 
     /// This function is a general way to directly make requests to vault using
@@ -163,7 +165,7 @@ impl<T: Auth> Client<T> {
     ) -> Result<reqwest::Response, Error> {
         self.check_session().await?;
 
-        let mut url = match Url::parse(&self.vault_url) {
+        let mut url = match Url::parse(&self.config.vault_url) {
             Err(e) => {
                 return Err(Error::from(e));
             }
