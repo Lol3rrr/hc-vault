@@ -2,7 +2,7 @@
 name = "hc-vault"
 description = "A simple crate to interact with hashicorp's vault"
 repository = "https://github.com/Lol3rrr/hc-vault"
-version = "0.1.1"
+version = "0.2.0"
 authors = ["lol3rrr <s.loler03@gmail.com>"]
 edition = "2018"
 license = "MIT"
