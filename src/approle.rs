@@ -67,6 +67,11 @@ impl AuthTrait for Session {
         elapsed >= duration
     }
     fn get_token(&self) -> String {
+        // There could technically be a Ptr-Swap + Drop of the old value between loading
+        // the address/value here and cloning it.
+        // Right now I don't know how to fix this issue, but this also seems rather
+        // unlikely as we don't hold the address of the old value but quickly
+        // clone the data and then use that for any further work we might need to do
         let token = self.token.load(std::sync::atomic::Ordering::SeqCst);
         match unsafe { token.as_ref() } {
             None => String::from(""),
@@ -148,9 +153,11 @@ impl Session {
     pub fn new(role_id: String, secret_id: String) -> Result<Session, Error> {
         let approle = ApproleLogin { role_id, secret_id };
 
+        let boxed_token = Box::new(String::from(""));
+
         Ok(Session {
             approle,
-            token: std::sync::atomic::AtomicPtr::new(&mut String::from("")),
+            token: std::sync::atomic::AtomicPtr::new(Box::into_raw(boxed_token)),
             token_start: std::sync::atomic::AtomicU64::new(0),
             token_duration: std::sync::atomic::AtomicU64::new(0),
         })
