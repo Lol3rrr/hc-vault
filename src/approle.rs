@@ -76,6 +76,17 @@ impl AuthTrait for Session {
         // Right now I don't know how to fix this issue, but this also seems rather
         // unlikely as we don't hold the address of the old value but quickly
         // clone the data and then use that for any further work we might need to do
+        //
+        // Safety:
+        // This should be save to do, because the token is only read when doing
+        // an operation and for that to happen, the validity of the current session is
+        // checked and if the token needs to be updated, which is the time where this
+        // part could panic/crash, the whole crate does not read from the token until
+        // the update is done and the lock held while performing said update is also
+        // completed.
+        // In Conclusion, this part will never be executed while the token is updated
+        // because the entire operations part of this crate is blocked until the update
+        // is done, so the token will never be read during an update
         let token = self.token.load(std::sync::atomic::Ordering::SeqCst);
         match unsafe { token.as_ref() } {
             None => String::from(""),
@@ -151,10 +162,10 @@ impl AuthTrait for Session {
         // This is used to actually drop the old value, but needs to be wrapped
         // in unsafe
         //
-        // Safety: This is safe to do, because we are the only thread to modify this
+        // Safety 1: This is safe to do, because we are the only thread to modify this
         // piece of data and can therefor safely construct the Box from the raw pointer,
         // which we previously stored in there and that should be valid, and then drop
-        // said value
+        // said value.
         unsafe {
             drop(Box::from_raw(old_token_ptr));
         }
