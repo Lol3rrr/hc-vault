@@ -35,7 +35,7 @@ async fn valid_update_set_no_options() {
         vault_url: mock_server.uri().clone(),
         ..Default::default()
     };
-    let client = match hc_vault::Client::new(conf, auth).await {
+    let client = match hc_vault::Client::new(conf, auth) {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -86,7 +86,7 @@ async fn valid_update_set_with_options() {
         vault_url: mock_server.uri().clone(),
         ..Default::default()
     };
-    let client = match hc_vault::Client::new(conf, auth).await {
+    let client = match hc_vault::Client::new(conf, auth) {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;

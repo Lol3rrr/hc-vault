@@ -62,7 +62,7 @@ fn valid_new_approle() {
             .mount(&mock_server),
     );
 
-    let mut tmp_auth = match hc_vault::approle::Session::new(test_role_id, test_secret_id) {
+    let tmp_auth = match hc_vault::approle::Session::new(test_role_id, test_secret_id) {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -98,7 +98,7 @@ fn invalid_new_approle_not_found() {
             .mount(&mock_server),
     );
 
-    let mut tmp_auth = match hc_vault::approle::Session::new(test_role_id, test_secret_id) {
+    let tmp_auth = match hc_vault::approle::Session::new(test_role_id, test_secret_id) {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -134,7 +134,7 @@ fn invalid_new_approle_not_valid_403() {
             .mount(&mock_server),
     );
 
-    let mut tmp_auth = match hc_vault::approle::Session::new(test_role_id, test_secret_id) {
+    let tmp_auth = match hc_vault::approle::Session::new(test_role_id, test_secret_id) {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;

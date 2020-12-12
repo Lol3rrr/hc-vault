@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use url::Url;
 
 use crate::Auth as AuthTrait;
@@ -48,19 +48,32 @@ struct ApproleResponse {
 pub struct Session {
     approle: ApproleLogin,
 
-    token: String,
-    token_start: Instant,
-    token_duration: Duration,
+    token: std::sync::atomic::AtomicPtr<String>,
+    /// The Start time in seconds
+    token_start: std::sync::atomic::AtomicU64,
+    /// The duration in seconds
+    token_duration: std::sync::atomic::AtomicU64,
 }
 
 impl AuthTrait for Session {
     fn is_expired(&self) -> bool {
-        self.token_start.elapsed() >= self.token_duration
+        let start_time = self.token_start.load(std::sync::atomic::Ordering::SeqCst);
+        let current_time = Instant::now().elapsed().as_secs();
+        let elapsed = current_time - start_time;
+        let duration = self
+            .token_duration
+            .load(std::sync::atomic::Ordering::SeqCst);
+
+        elapsed >= duration
     }
     fn get_token(&self) -> String {
-        self.token.clone()
+        let token = self.token.load(std::sync::atomic::Ordering::SeqCst);
+        match unsafe { token.as_ref() } {
+            None => String::from(""),
+            Some(s) => s.clone(),
+        }
     }
-    fn auth(&mut self, vault_url: &str) -> Result<(), Error> {
+    fn auth(&self, vault_url: &str) -> Result<(), Error> {
         let mut login_url = match Url::parse(vault_url) {
             Err(e) => {
                 return Err(Error::from(e));
@@ -108,9 +121,22 @@ impl AuthTrait for Session {
 
         let data = data.unwrap();
 
-        self.token = data.auth.client_token;
-        self.token_start = Instant::now();
-        self.token_duration = Duration::from_secs(data.auth.lease_duration);
+        let token = data.auth.client_token;
+        let current_time = Instant::now().elapsed().as_secs();
+        let duration = data.auth.lease_duration;
+
+        let boxed_token = Box::new(token.clone());
+
+        let old_token_ptr = self.token.swap(
+            Box::into_raw(boxed_token),
+            std::sync::atomic::Ordering::SeqCst,
+        );
+        self.token_start
+            .store(current_time, std::sync::atomic::Ordering::SeqCst);
+        self.token_duration
+            .store(duration, std::sync::atomic::Ordering::SeqCst);
+
+        std::mem::drop(old_token_ptr);
 
         Ok(())
     }
@@ -124,9 +150,9 @@ impl Session {
 
         Ok(Session {
             approle,
-            token: "".to_string(),
-            token_start: Instant::now(),
-            token_duration: Duration::from_secs(0),
+            token: std::sync::atomic::AtomicPtr::new(&mut String::from("")),
+            token_start: std::sync::atomic::AtomicU64::new(0),
+            token_duration: std::sync::atomic::AtomicU64::new(0),
         })
     }
 }
