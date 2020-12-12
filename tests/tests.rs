@@ -1,5 +1,6 @@
 mod approle {
     mod auth;
+    mod is_expired;
 }
 
 mod database {

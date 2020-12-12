@@ -173,8 +173,6 @@ impl<T: Auth> Client<T> {
             RenewPolicy::Nothing => Err(Error::SessionExpired),
         };
 
-        println!("New Token: {}", self.auth.get_token());
-
         return result;
     }
 
