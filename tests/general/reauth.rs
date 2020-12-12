@@ -2,7 +2,7 @@ extern crate hc_vault;
 
 use async_std::task;
 
-use wiremock::matchers::{body_json, header, method, path};
+use wiremock::matchers::{body_json, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use serde::Serialize;
