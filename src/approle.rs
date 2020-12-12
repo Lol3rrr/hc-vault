@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::time::{Instant, SystemTime};
+use std::time::SystemTime;
 use url::Url;
 
 use crate::Auth as AuthTrait;
