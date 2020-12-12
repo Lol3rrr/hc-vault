@@ -35,7 +35,7 @@ async fn valid_configure_no_options() {
         vault_url: mock_server.uri().clone(),
         ..Default::default()
     };
-    let client = match hc_vault::Client::new(conf, auth).await {
+    let client = match hc_vault::Client::new(conf, auth) {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -84,7 +84,7 @@ async fn valid_configure_only_max_verison_option() {
         vault_url: mock_server.uri().clone(),
         ..Default::default()
     };
-    let client = match hc_vault::Client::new(conf, auth).await {
+    let client = match hc_vault::Client::new(conf, auth) {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -133,7 +133,7 @@ async fn valid_configure_only_cas_required_option() {
         vault_url: mock_server.uri().clone(),
         ..Default::default()
     };
-    let client = match hc_vault::Client::new(conf, auth).await {
+    let client = match hc_vault::Client::new(conf, auth) {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -182,7 +182,7 @@ async fn valid_configure_only_delete_version_after_option() {
         vault_url: mock_server.uri().clone(),
         ..Default::default()
     };
-    let client = match hc_vault::Client::new(conf, auth).await {
+    let client = match hc_vault::Client::new(conf, auth) {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;
@@ -233,7 +233,7 @@ async fn valid_configure_all_options() {
         vault_url: mock_server.uri().clone(),
         ..Default::default()
     };
-    let client = match hc_vault::Client::new(conf, auth).await {
+    let client = match hc_vault::Client::new(conf, auth) {
         Err(e) => {
             assert!(false, "Should not return error: '{}'", e);
             return;

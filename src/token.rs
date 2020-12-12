@@ -18,7 +18,7 @@ impl AuthTrait for Session {
     fn get_token(&self) -> String {
         self.token.clone()
     }
-    fn auth(&mut self, _vault_url: &str) -> Result<(), Error> {
+    fn auth(&self, _vault_url: &str) -> Result<(), Error> {
         Ok(())
     }
 }

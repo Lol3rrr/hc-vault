@@ -7,6 +7,7 @@ mod database {
 }
 
 mod general {
+    mod reauth;
     mod vault_request;
 }
 
