@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 use url::Url;
 
 use crate::Auth as AuthTrait;
@@ -58,7 +58,11 @@ pub struct Session {
 impl AuthTrait for Session {
     fn is_expired(&self) -> bool {
         let start_time = self.token_start.load(std::sync::atomic::Ordering::SeqCst);
-        let current_time = Instant::now().elapsed().as_secs();
+        let current_time = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+
         let elapsed = current_time - start_time;
         let duration = self
             .token_duration
@@ -127,7 +131,10 @@ impl AuthTrait for Session {
         let data = data.unwrap();
 
         let token = data.auth.client_token;
-        let current_time = Instant::now().elapsed().as_secs();
+        let current_time = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
         let duration = data.auth.lease_duration;
 
         let boxed_token = Box::new(token);
