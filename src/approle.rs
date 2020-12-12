@@ -130,7 +130,7 @@ impl AuthTrait for Session {
         let current_time = Instant::now().elapsed().as_secs();
         let duration = data.auth.lease_duration;
 
-        let boxed_token = Box::new(token.clone());
+        let boxed_token = Box::new(token);
 
         let old_token_ptr = self.token.swap(
             Box::into_raw(boxed_token),
@@ -141,7 +141,16 @@ impl AuthTrait for Session {
         self.token_duration
             .store(duration, std::sync::atomic::Ordering::SeqCst);
 
-        std::mem::drop(old_token_ptr);
+        // This is used to actually drop the old value, but needs to be wrapped
+        // in unsafe
+        //
+        // Safety: This is safe to do, because we are the only thread to modify this
+        // piece of data and can therefor safely construct the Box from the raw pointer,
+        // which we previously stored in there and that should be valid, and then drop
+        // said value
+        unsafe {
+            drop(Box::from_raw(old_token_ptr));
+        }
 
         Ok(())
     }
