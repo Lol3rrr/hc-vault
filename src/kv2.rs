@@ -39,6 +39,8 @@ struct ConfigurationResponse {
 
 /// This function is used to configure the given kv2-mount with the provided
 /// configuration options
+///
+/// [Vault-Documentation](https://www.vaultproject.io/api-docs/secret/kv/kv-v2#configure-the-kv-engine)
 pub async fn configure(
     client: &Client<impl Auth>,
     mount: &str,
@@ -57,6 +59,8 @@ pub async fn configure(
 
 /// Is used to load the current configuration of the kv2-backend mounted
 /// at the given mount point
+///
+/// [Vault-Documentation](https://www.vaultproject.io/api-docs/secret/kv/kv-v2#read-kv-engine-configuration)
 pub async fn get_configuration(
     client: &Client<impl Auth>,
     mount: &str,
@@ -91,6 +95,8 @@ struct KV2Response<T> {
 
 /// This function is used to load data from the kv2-mount in vault.
 /// The data will be serialized into a struct from the provided type
+///
+/// [Vault-Documentation](https://www.vaultproject.io/api-docs/secret/kv/kv-v2#read-secret-version)
 pub async fn get<T: DeserializeOwned>(
     client: &Client<impl Auth>,
     mount: &str,
@@ -136,6 +142,8 @@ struct UpdatePayload<T> {
 
 /// This function is used to update or set data for a given path
 /// in the kv2-mount in vault
+///
+/// [Vault-Documentation](https://www.vaultproject.io/api-docs/secret/kv/kv-v2#create-update-secret)
 pub async fn update_set<T: Serialize>(
     client: &Client<impl Auth>,
     mount: &str,
@@ -165,6 +173,8 @@ pub async fn update_set<T: Serialize>(
 /// This deletes the latest version of the secret, which only stops it from being
 /// read/returned but currently doesnt actually delete the underlying data so it
 /// can be undone using `undelete`
+///
+/// [Vault-Documentation](https://www.vaultproject.io/api-docs/secret/kv/kv-v2#delete-latest-version-of-secret)
 pub async fn delete(client: &Client<impl Auth>, mount: &str, name: &str) -> Result<(), Error> {
     let path = format!("{}/data/{}", mount, name);
 
@@ -184,6 +194,8 @@ struct DeleteVersionsBody {
 
 /// Issues a soft delete, similiar to the delete function, for all the given
 /// versions
+///
+/// [Vault-Documentation](https://www.vaultproject.io/api-docs/secret/kv/kv-v2#delete-secret-versions)
 pub async fn delete_versions(
     client: &Client<impl Auth>,
     mount: &str,
@@ -211,6 +223,8 @@ struct UndeleteVersionsBody {
 /// This undeletes previously deleted versions, not destroyed versions. These
 /// versions will afterwards appear normally in any further requests as if they
 /// have never been deleted in the first place
+///
+/// [Vault-Documentation](https://www.vaultproject.io/api-docs/secret/kv/kv-v2#undelete-secret-versions)
 pub async fn undelete_versions(
     client: &Client<impl Auth>,
     mount: &str,
@@ -237,6 +251,8 @@ struct DestroyVersionsBody {
 
 /// Permanently removes/deletes the given versions with no way to recover
 /// the data after this operation has completed
+///
+/// [Vault-Documentation](https://www.vaultproject.io/api-docs/secret/kv/kv-v2#destroy-secret-versions)
 pub async fn destroy_versions(
     client: &Client<impl Auth>,
     mount: &str,
@@ -259,6 +275,8 @@ pub async fn destroy_versions(
 /// This is used to delete all versions and metadata associated with a given
 /// key in the kv-store. This operation is, like destroy_versions, permanent and
 /// cannot be undone
+///
+/// [Vault-Documentation](https://www.vaultproject.io/api-docs/secret/kv/kv-v2#delete-metadata-and-all-versions)
 pub async fn delete_metadata_all_versions(
     client: &Client<impl Auth>,
     mount: &str,
