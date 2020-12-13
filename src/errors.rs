@@ -58,3 +58,16 @@ impl From<reqwest::Error> for Error {
         Error::ReqwestError(cause)
     }
 }
+/// This is only meant for status codes and assumes that the
+/// given u16 is a status-code from an http-request
+impl From<u16> for Error {
+    fn from(cause: u16) -> Error {
+        match cause {
+            400 => Error::InvalidRequest,
+            403 => Error::Unauthorized,
+            404 => Error::NotFound,
+            503 => Error::IsSealed,
+            _ => Error::Other,
+        }
+    }
+}

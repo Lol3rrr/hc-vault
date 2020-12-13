@@ -171,11 +171,7 @@ impl<T: Auth> Client<T> {
 
         match status_code {
             200 | 204 => Ok(resp),
-            400 => Err(Error::InvalidRequest),
-            403 => Err(Error::Unauthorized),
-            404 => Err(Error::NotFound),
-            503 => Err(Error::IsSealed),
-            _ => Err(Error::Other),
+            _ => Err(Error::from(status_code)),
         }
     }
 }

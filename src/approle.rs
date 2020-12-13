@@ -118,20 +118,8 @@ impl AuthTrait for Session {
         };
 
         let status_code = response.status().as_u16();
-        if status_code == 400 {
-            return Err(Error::InvalidRequest);
-        }
-        if status_code == 403 {
-            return Err(Error::Unauthorized);
-        }
-        if status_code == 404 {
-            return Err(Error::NotFound);
-        }
-        if status_code == 503 {
-            return Err(Error::IsSealed);
-        }
         if status_code != 200 && status_code != 204 {
-            return Err(Error::Other);
+            return Err(Error::from(status_code));
         }
 
         let data = match response.json::<ApproleResponse>() {
