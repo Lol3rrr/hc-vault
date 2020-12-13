@@ -180,6 +180,7 @@ impl Session {
     }
 }
 
+// TODO: Add serialize setting to omit empty options
 /// Struct used for configuring an Approle-Role, contains all the
 /// options that are possible to set on said Role
 ///
@@ -223,6 +224,7 @@ pub struct ApproleOptions {
     pub token_type: Option<String>,
 }
 
+// TODO: Add test for this function
 /// Used to create or update an Approle-Role with the given options
 ///
 /// # Arguments:
