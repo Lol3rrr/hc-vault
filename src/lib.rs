@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-//! A simple async library to interact with vault and its mounts
+//! Async, highly concurrent crate to interact with vault and its mounts
 
 /// The approle module is used for all interactions with the approle backend in vault
 pub mod approle;
