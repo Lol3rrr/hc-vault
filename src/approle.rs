@@ -121,13 +121,9 @@ impl AuthTrait for Session {
             .as_secs();
         let duration = data.auth.lease_duration;
 
-        // This is used to actually drop the old value, but needs to be wrapped
-        // in unsafe
-        //
-        // Safety 1: This is safe to do, because we are the only thread to modify this
-        // piece of data and can therefor safely construct the Box from the raw pointer,
-        // which we previously stored in there and that should be valid, and then drop
-        // said value.
+        // Safety:
+        // This is safe to do, because we are the only thread to access the
+        // token therefore updating it is safe
         self.token.set_token(token);
 
         // Update the Times afterwards to make sure that no thread could see

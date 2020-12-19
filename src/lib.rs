@@ -1,10 +1,12 @@
 #![warn(missing_docs)]
 //! Async, highly concurrent crate to interact with vault and its mounts
 
-/// The approle module is used for all interactions with the approle backend in vault
+/// The Approle Auth-Backend in vault
 pub mod approle;
 /// The Database module is used for all interactions with the database backend in vault
 pub mod database;
+/// The Kubernetes Auth-Backend in vault
+pub mod kubernetes;
 /// The kv2 module is used for all interactions with the v2 key-value backend in vault
 pub mod kv2;
 /// The token module is used for all basic interactions with a simple client-token and no other
