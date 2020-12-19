@@ -9,10 +9,10 @@ use crate::Error;
 /// The Config for Kubernetes Login
 #[derive(Clone, Serialize)]
 pub struct KubernetesLogin {
-    /// The Role that you want to login as
-    pub role: String,
     /// The JWT Token to use for authentication
     pub jwt: String,
+    /// The Role that you want to login as
+    pub role: String,
 }
 
 #[derive(Deserialize)]
@@ -122,5 +122,16 @@ impl AuthTrait for Session {
         self.token.set_duration(duration);
 
         Ok(())
+    }
+}
+
+impl Session {
+    /// This is used to obtain a new Auth-Session for the Kubernetes
+    /// Auth-Backend
+    pub fn new(role: String, jwt: String) -> Result<Session, Error> {
+        Ok(Session {
+            kubernetes: KubernetesLogin { role, jwt },
+            token: internals::TokenContainer::new(),
+        })
     }
 }
