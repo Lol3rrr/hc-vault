@@ -2,7 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use url::Url;
 
+use crate::internals;
 use crate::Auth as AuthTrait;
+use crate::Client;
 use crate::Error;
 
 /// The Config for approle login
@@ -48,38 +50,32 @@ struct ApproleResponse {
 pub struct Session {
     approle: ApproleLogin,
 
-    token: std::sync::atomic::AtomicPtr<String>,
-    /// The Start time in seconds
-    token_start: std::sync::atomic::AtomicU64,
-    /// The duration in seconds
-    token_duration: std::sync::atomic::AtomicU64,
+    token: internals::TokenContainer,
 }
 
 impl AuthTrait for Session {
     fn is_expired(&self) -> bool {
-        let start_time = self.token_start.load(std::sync::atomic::Ordering::SeqCst);
+        let start_time = self.token.get_start();
         let current_time = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs();
 
         let elapsed = current_time - start_time;
-        let duration = self
-            .token_duration
-            .load(std::sync::atomic::Ordering::SeqCst);
+        let duration = self.token.get_duration();
 
         elapsed >= duration
     }
     fn get_token(&self) -> String {
-        // There could technically be a Ptr-Swap + Drop of the old value between loading
-        // the address/value here and cloning it.
-        // Right now I don't know how to fix this issue, but this also seems rather
-        // unlikely as we don't hold the address of the old value but quickly
-        // clone the data and then use that for any further work we might need to do
-        let token = self.token.load(std::sync::atomic::Ordering::SeqCst);
-        match unsafe { token.as_ref() } {
+        // Safety:
+        // This Operation is indirectly synchronized, because the validity of
+        // the session is checked before the Token is read and if the Token
+        // needs to be updated, all further operations (including reading the
+        // Token) are blocked until the Update of the Token is done.
+        // Therefore the Token is never read while it is also being modified.
+        match self.token.get_token() {
             None => String::from(""),
-            Some(s) => s.clone(),
+            Some(s) => s,
         }
     }
     fn auth(&self, vault_url: &str) -> Result<(), Error> {
@@ -107,20 +103,8 @@ impl AuthTrait for Session {
         };
 
         let status_code = response.status().as_u16();
-        if status_code == 400 {
-            return Err(Error::InvalidRequest);
-        }
-        if status_code == 403 {
-            return Err(Error::Unauthorized);
-        }
-        if status_code == 404 {
-            return Err(Error::NotFound);
-        }
-        if status_code == 503 {
-            return Err(Error::IsSealed);
-        }
         if status_code != 200 && status_code != 204 {
-            return Err(Error::Other);
+            return Err(Error::from(status_code));
         }
 
         let data = match response.json::<ApproleResponse>() {
@@ -137,27 +121,17 @@ impl AuthTrait for Session {
             .as_secs();
         let duration = data.auth.lease_duration;
 
-        let boxed_token = Box::new(token);
+        // Safety:
+        // This is safe to do, because we are the only thread to access the
+        // token therefore updating it is safe
+        self.token.set_token(token);
 
-        let old_token_ptr = self.token.swap(
-            Box::into_raw(boxed_token),
-            std::sync::atomic::Ordering::SeqCst,
-        );
-        self.token_start
-            .store(current_time, std::sync::atomic::Ordering::SeqCst);
-        self.token_duration
-            .store(duration, std::sync::atomic::Ordering::SeqCst);
-
-        // This is used to actually drop the old value, but needs to be wrapped
-        // in unsafe
-        //
-        // Safety: This is safe to do, because we are the only thread to modify this
-        // piece of data and can therefor safely construct the Box from the raw pointer,
-        // which we previously stored in there and that should be valid, and then drop
-        // said value
-        unsafe {
-            drop(Box::from_raw(old_token_ptr));
-        }
+        // Update the Times afterwards to make sure that no thread could see
+        // these new valid times and try to read the token before the update
+        // is actually done, as these Times basically work as an indicator if
+        // the token can be accessed or not
+        self.token.set_start(current_time);
+        self.token.set_duration(duration);
 
         Ok(())
     }
@@ -169,13 +143,91 @@ impl Session {
     pub fn new(role_id: String, secret_id: String) -> Result<Session, Error> {
         let approle = ApproleLogin { role_id, secret_id };
 
-        let boxed_token = Box::new(String::from(""));
-
         Ok(Session {
             approle,
-            token: std::sync::atomic::AtomicPtr::new(Box::into_raw(boxed_token)),
-            token_start: std::sync::atomic::AtomicU64::new(0),
-            token_duration: std::sync::atomic::AtomicU64::new(0),
+            token: internals::TokenContainer::new(),
         })
+    }
+}
+
+/// Struct used for configuring an Approle-Role, contains all the
+/// options that are possible to set on said Role
+///
+/// [Vault-Documentation](https://www.vaultproject.io/api-docs/auth/approle#create-update-approle)
+#[derive(Debug, Serialize)]
+pub struct ApproleOptions {
+    /// If the `secret_id` is required to be present when logging in
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bind_secret_id: Option<bool>,
+    /// Specifies blocks of IP-addresses that can use this role
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_id_bound_cidrs: Option<Vec<String>>,
+    /// The Number of times a single Secret-ID can be used for login.
+    /// 0 means unlimited
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_id_num_uses: Option<u64>,
+    /// The TTL of a Secret-ID
+    ///
+    /// Example-Value: `30m`
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_id_ttl: Option<String>,
+    /// If the Secret-IDs generated for this role should be cluster local.
+    ///
+    /// Can't be changed after the Role has been created
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_local_secret_ids: Option<bool>,
+    /// The TTL of the generated Tokens in seconds
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_ttl: Option<u64>,
+    /// The maximum TTL of generated Tokens in seconds
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_max_ttl: Option<u64>,
+    /// The Policies assigned to the generated Tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_policies: Option<Vec<String>>,
+    /// Specifies blocks of IP-addresses that can authenticate using this role
+    /// and ties the tokens to these blocks as well
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_bound_cidrs: Option<Vec<String>>,
+    /// Sets an explicit maximum TTL after which every token will expire even
+    /// if it was renewed before
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_explicit_max_ttl: Option<u64>,
+    /// If the `default` Policy should not be set generated tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_no_default_policy: Option<bool>,
+    /// The maximum Number of uses per generated Token, in it's lifetime
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_num_uses: Option<u64>,
+    /// The Period, if any, of the Tokens
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_period: Option<u64>,
+    /// The Type of Token that should be generated
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub token_type: Option<String>,
+}
+
+// TODO: Add test for this function
+/// Used to create or update an Approle-Role with the given options
+///
+/// # Arguments:
+/// * `client`: A valid vault-client session that is used to execute this request
+/// * `name`: The Name of the Role to modify/create
+/// * `opts`: The Options that should be applied to the role
+///
+/// [Vault-Documentation](https://www.vaultproject.io/api-docs/auth/approle#create-update-approle)
+pub async fn create_update(
+    client: &Client<impl AuthTrait>,
+    name: &str,
+    opts: ApproleOptions,
+) -> Result<(), Error> {
+    let path = format!("auth/approle/role/{}", name);
+
+    match client
+        .vault_request(reqwest::Method::POST, &path, Some(&opts))
+        .await
+    {
+        Err(e) => Err(e),
+        Ok(_) => Ok(()),
     }
 }

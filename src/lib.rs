@@ -1,89 +1,54 @@
 #![warn(missing_docs)]
-//! A simple async library to interact with vault and its mounts
+//! Async, highly concurrent crate to interact with vault and its mounts
 
-/// The approle module is used for all interactions with the approle backend in vault
+/// The Approle Auth-Backend in vault
 pub mod approle;
 /// The Database module is used for all interactions with the database backend in vault
 pub mod database;
+/// The Kubernetes Auth-Backend in vault
+pub mod kubernetes;
 /// The kv2 module is used for all interactions with the v2 key-value backend in vault
 pub mod kv2;
 /// The token module is used for all basic interactions with a simple client-token and no other
 /// backend
 pub mod token;
 
+mod internals;
+
+mod errors;
+
 use serde::Serialize;
-use std::fmt;
 use url::Url;
 
-/// The Error
-#[derive(Debug)]
-pub enum Error {
-    /// ParseError is returned when there was an error parsing a url
-    ParseError(url::ParseError),
-    /// ReqwestError is returned when the request made to vault itself fails
-    ReqwestError(reqwest::Error),
-    /// InvalidRequest is returned when the made to vault was missing data or was invalid/
-    /// malformed data and therefore was rejected by vault before doing anything
-    InvalidRequest,
-    /// IsSealed is returned when the given vault instance is not available because it
-    /// is currently sealed and therefore does not accept or handle any requests other
-    /// than to unseal it
-    IsSealed,
-    /// NotFound is returned when the given vault endpoint/path was not found on the
-    /// actual vault instance that you are connected to
-    NotFound,
-    /// Unauthorized is returned when your current Session has either expired and has not
-    /// been renewed or when the credentials for login are not valid and therefore rejected
-    /// or when you try to access something that you dont have the permissions to do so
-    Unauthorized,
-    /// SessionExpired is returned when the session you tried to use is expired and was
-    /// configured to not automatically obtain a new session, when it notices that the
-    /// current one is expired
-    SessionExpired,
-    /// Other simply represents all other errors that could not be grouped into on the other
-    /// categories listed above
-    Other,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Error::ParseError(ref cause) => write!(f, "Parse Error: {}", cause),
-            Error::ReqwestError(ref cause) => write!(f, "Reqwest Error: {}", cause),
-            Error::InvalidRequest => write!(f, "Invalid Request: Invalid or Missing data"),
-            Error::IsSealed => write!(
-                f,
-                "The Vault instance is still sealed and can't be used at the moment"
-            ),
-            Error::NotFound => write!(f, "Not Found"),
-            Error::Unauthorized => write!(f, "Unauthorized"),
-            Error::SessionExpired => write!(f, "Session has expired, no auto login"),
-            Error::Other => write!(f, "Unknown error"),
-        }
-    }
-}
-
-impl From<url::ParseError> for Error {
-    fn from(cause: url::ParseError) -> Error {
-        Error::ParseError(cause)
-    }
-}
-impl From<reqwest::Error> for Error {
-    fn from(cause: reqwest::Error) -> Error {
-        Error::ReqwestError(cause)
-    }
-}
+pub use errors::Error;
 
 /// This trait needs to be implemented by all auth backends to be used for
 /// authenticating using that backend
 pub trait Auth {
     /// Checking if the current session is expired and needs to be renewed or dropped
+    ///
+    /// Safety:
+    /// This function is expected to be called from mulitple Threads at the same time
+    /// in an unsychronized way, even while the Auth-Backend is in the middle of an
+    /// Auth-Operation
     fn is_expired(&self) -> bool;
     /// Used to actually authenticate with the backend and obain a new valid session
     /// that can be used for further requests to vault
+    ///
+    /// Safety:
+    /// This function is always called in a synchronized manner during which
+    /// no other Thread is readinh the Token. This allows for optimizations and
+    /// techniques to be used that rely on exclusive access to the Token when it
+    /// is being updated, but not while reading it. This helps to avoid any
+    /// Mutexes/Locks in the Auth-Backend.
     fn auth(&self, vault_url: &str) -> Result<(), Error>;
     /// Returns the vault token that can be used to make requests to vault
     /// as the current session
+    ///
+    /// Safety:
+    /// This function is expected to be called from mulitple Threads at the same
+    /// time in an unsychronized way, but not while the Backend is doing a single
+    /// Auth-Operation
     fn get_token(&self) -> String;
 }
 
@@ -227,11 +192,7 @@ impl<T: Auth> Client<T> {
 
         match status_code {
             200 | 204 => Ok(resp),
-            400 => Err(Error::InvalidRequest),
-            403 => Err(Error::Unauthorized),
-            404 => Err(Error::NotFound),
-            503 => Err(Error::IsSealed),
-            _ => Err(Error::Other),
+            _ => Err(Error::from(status_code)),
         }
     }
 }

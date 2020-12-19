@@ -12,6 +12,11 @@ mod general {
     mod vault_request;
 }
 
+mod kubernetes {
+    mod auth;
+    mod is_expired;
+}
+
 mod kv2 {
     mod configure;
     mod delete;
