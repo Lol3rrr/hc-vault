@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::time::SystemTime;
 use url::Url;
 
+use crate::internals;
 use crate::Auth as AuthTrait;
 use crate::Client;
 use crate::Error;
@@ -49,49 +50,32 @@ struct ApproleResponse {
 pub struct Session {
     approle: ApproleLogin,
 
-    token: std::sync::atomic::AtomicPtr<String>,
-    /// The Start time in seconds
-    token_start: std::sync::atomic::AtomicU64,
-    /// The duration in seconds
-    token_duration: std::sync::atomic::AtomicU64,
+    token: internals::TokenContainer,
 }
 
 impl AuthTrait for Session {
     fn is_expired(&self) -> bool {
-        let start_time = self.token_start.load(std::sync::atomic::Ordering::SeqCst);
+        let start_time = self.token.get_start();
         let current_time = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_secs();
 
         let elapsed = current_time - start_time;
-        let duration = self
-            .token_duration
-            .load(std::sync::atomic::Ordering::SeqCst);
+        let duration = self.token.get_duration();
 
         elapsed >= duration
     }
     fn get_token(&self) -> String {
-        // There could technically be a Ptr-Swap + Drop of the old value between loading
-        // the address/value here and cloning it.
-        // Right now I don't know how to fix this issue, but this also seems rather
-        // unlikely as we don't hold the address of the old value but quickly
-        // clone the data and then use that for any further work we might need to do
-        //
         // Safety:
-        // This should be save to do, because the token is only read when doing
-        // an operation and for that to happen, the validity of the current session is
-        // checked and if the token needs to be updated, which is the time where this
-        // part could panic/crash, the whole crate does not read from the token until
-        // the update is done and the lock held while performing said update is also
-        // completed.
-        // In Conclusion, this part will never be executed while the token is updated
-        // because the entire operations part of this crate is blocked until the update
-        // is done, so the token will never be read during an update
-        let token = self.token.load(std::sync::atomic::Ordering::SeqCst);
-        match unsafe { token.as_ref() } {
+        // This Operation is indirectly synchronized, because the validity of
+        // the session is checked before the Token is read and if the Token
+        // needs to be updated, all further operations (including reading the
+        // Token) are blocked until the Update of the Token is done.
+        // Therefore the Token is never read while it is also being modified.
+        match self.token.get_token() {
             None => String::from(""),
-            Some(s) => s.clone(),
+            Some(s) => s,
         }
     }
     fn auth(&self, vault_url: &str) -> Result<(), Error> {
@@ -137,17 +121,8 @@ impl AuthTrait for Session {
             .as_secs();
         let duration = data.auth.lease_duration;
 
-        let boxed_token = Box::new(token);
-
-        let old_token_ptr = self.token.swap(
-            Box::into_raw(boxed_token),
-            std::sync::atomic::Ordering::SeqCst,
-        );
-        self.token_start
-            .store(current_time, std::sync::atomic::Ordering::SeqCst);
-        self.token_duration
-            .store(duration, std::sync::atomic::Ordering::SeqCst);
-
+        self.token.set_start(current_time);
+        self.token.set_duration(duration);
         // This is used to actually drop the old value, but needs to be wrapped
         // in unsafe
         //
@@ -155,9 +130,7 @@ impl AuthTrait for Session {
         // piece of data and can therefor safely construct the Box from the raw pointer,
         // which we previously stored in there and that should be valid, and then drop
         // said value.
-        unsafe {
-            drop(Box::from_raw(old_token_ptr));
-        }
+        self.token.set_token(token);
 
         Ok(())
     }
@@ -169,13 +142,9 @@ impl Session {
     pub fn new(role_id: String, secret_id: String) -> Result<Session, Error> {
         let approle = ApproleLogin { role_id, secret_id };
 
-        let boxed_token = Box::new(String::from(""));
-
         Ok(Session {
             approle,
-            token: std::sync::atomic::AtomicPtr::new(Box::into_raw(boxed_token)),
-            token_start: std::sync::atomic::AtomicU64::new(0),
-            token_duration: std::sync::atomic::AtomicU64::new(0),
+            token: internals::TokenContainer::new(),
         })
     }
 }
