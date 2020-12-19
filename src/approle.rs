@@ -121,8 +121,6 @@ impl AuthTrait for Session {
             .as_secs();
         let duration = data.auth.lease_duration;
 
-        self.token.set_start(current_time);
-        self.token.set_duration(duration);
         // This is used to actually drop the old value, but needs to be wrapped
         // in unsafe
         //
@@ -131,6 +129,13 @@ impl AuthTrait for Session {
         // which we previously stored in there and that should be valid, and then drop
         // said value.
         self.token.set_token(token);
+
+        // Update the Times afterwards to make sure that no thread could see
+        // these new valid times and try to read the token before the update
+        // is actually done, as these Times basically work as an indicator if
+        // the token can be accessed or not
+        self.token.set_start(current_time);
+        self.token.set_duration(duration);
 
         Ok(())
     }
