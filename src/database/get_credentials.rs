@@ -2,9 +2,8 @@ use crate::Auth;
 use crate::Client;
 use crate::Error;
 
-use std::time::Duration;
-
 use serde::Deserialize;
+use std::time::Duration;
 
 #[derive(Deserialize)]
 struct DBCreds {
