@@ -48,6 +48,27 @@ pub trait Auth {
     /// time in an unsychronized way, but not while the Backend is doing a single
     /// Auth-Operation
     fn get_token(&self) -> String;
+    /// Returns if the current token can be renewed using this auth-backend.
+    /// This is used to decide whether or not to try to renew the session before
+    /// it is expired or letting the session expire and then simply obtaining a
+    /// new one the next time it is used.
+    ///
+    /// Safety:
+    /// This function is only called by a single, maybe two, threads.
+    fn is_renewable(&self) -> bool;
+    /// Returns the total duration for which the current token is valid for
+    /// in seconds
+    ///
+    /// Safety:
+    /// This function is only expected to be called by the background thread that
+    /// is responsible for renewing a token
+    fn get_total_duration(&self) -> u64;
+    /// This is used to actually renew the Tokens lease
+    ///
+    /// Safety:
+    /// This function is only expected to be called by the background thread that
+    /// renews the token
+    fn renew(&self) -> Result<(), Error>;
 }
 
 /// The RenewPolicy describes how the vault client should deal with expired
@@ -57,6 +78,15 @@ pub enum RenewPolicy {
     /// provided auth config, if the old one expired. This is a lazy operation,
     /// so it only checks if it needs a new session before making a request
     Reauth,
+    /// Renew causes the vault client to try and renew a token as long and as often as
+    /// possible without ever letting it actually expire.
+    /// The float should be a value between 0-1 and represents the percentage (0=0%, 1=100%)
+    /// of time that should be remaining before a session/token is renewed.
+    ///
+    /// Example:
+    /// With a threshold of 0.25 and a total Token Duration of 60m, the Token will be renewed
+    /// after 45m/ when only 15min are left.
+    Renew(f32),
     /// Nothing does nothing when the session expires. This will cause the client to always
     /// return a SessionExpired error when trying to request anything from vault
     Nothing,
