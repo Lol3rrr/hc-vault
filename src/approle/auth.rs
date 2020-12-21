@@ -4,7 +4,6 @@ use url::Url;
 
 use crate::internals;
 use crate::Auth as AuthTrait;
-use crate::Client;
 use crate::Error;
 
 /// The Config for approle login
@@ -43,6 +42,25 @@ struct ApproleResponse {
     pub renewable: bool,
     /// The id of this lease
     pub lease_id: String,
+}
+
+#[derive(Deserialize)]
+struct RenewAuth {
+    /// Whether or not the auth-session is renewable
+    pub renewable: bool,
+    /// The duration for which this session is valid
+    pub lease_duration: u64,
+    /// The policies associated with this session/token
+    pub policies: Vec<String>,
+    /// The actual Token that will also be needed/used for further
+    /// requests to vault to authenticate with this session
+    pub client_token: String,
+}
+
+#[derive(Deserialize)]
+struct RenewResponse {
+    /// The new auth data after renewal
+    pub auth: RenewAuth,
 }
 
 /// The Auth session for the approle backend, used by the vault client itself
@@ -126,10 +144,75 @@ impl AuthTrait for Session {
         // token therefore updating it is safe
         self.token.set_token(token);
 
+        self.token.set_renewable(data.auth.renewable);
+
         // Update the Times afterwards to make sure that no thread could see
         // these new valid times and try to read the token before the update
         // is actually done, as these Times basically work as an indicator if
         // the token can be accessed or not
+        self.token.set_start(current_time);
+        self.token.set_duration(duration);
+
+        Ok(())
+    }
+
+    fn is_renewable(&self) -> bool {
+        self.token.get_renewable()
+    }
+
+    fn get_total_duration(&self) -> u64 {
+        self.token.get_duration()
+    }
+
+    fn renew(&self, vault_url: &str) -> Result<(), Error> {
+        let mut renew_url = match Url::parse(vault_url) {
+            Err(e) => {
+                return Err(Error::from(e));
+            }
+            Ok(url) => url,
+        };
+        renew_url = match renew_url.join("v1/auth/token/renew-self") {
+            Err(e) => {
+                return Err(Error::from(e));
+            }
+            Ok(u) => u,
+        };
+
+        let http_client = reqwest::blocking::Client::new();
+        let res = http_client
+            .post(renew_url)
+            .header("X-Vault-Token", self.token.get_token().unwrap())
+            .send();
+
+        let response = match res {
+            Err(e) => {
+                return Err(Error::from(e));
+            }
+            Ok(resp) => resp,
+        };
+
+        let status_code = response.status().as_u16();
+        if status_code != 200 && status_code != 204 {
+            return Err(Error::from(status_code));
+        }
+
+        let data = match response.json::<RenewResponse>() {
+            Err(e) => Err(Error::from(e)),
+            Ok(json) => Ok(json),
+        };
+
+        let data = data.unwrap();
+
+        let current_time = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let duration = data.auth.lease_duration;
+        let renewable = data.auth.renewable;
+
+        self.token.set_renewable(renewable);
+
+        // The times should again be set at the end after everything else is done already
         self.token.set_start(current_time);
         self.token.set_duration(duration);
 
@@ -147,87 +230,5 @@ impl Session {
             approle,
             token: internals::TokenContainer::new(),
         })
-    }
-}
-
-/// Struct used for configuring an Approle-Role, contains all the
-/// options that are possible to set on said Role
-///
-/// [Vault-Documentation](https://www.vaultproject.io/api-docs/auth/approle#create-update-approle)
-#[derive(Debug, Serialize)]
-pub struct ApproleOptions {
-    /// If the `secret_id` is required to be present when logging in
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub bind_secret_id: Option<bool>,
-    /// Specifies blocks of IP-addresses that can use this role
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub secret_id_bound_cidrs: Option<Vec<String>>,
-    /// The Number of times a single Secret-ID can be used for login.
-    /// 0 means unlimited
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub secret_id_num_uses: Option<u64>,
-    /// The TTL of a Secret-ID
-    ///
-    /// Example-Value: `30m`
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub secret_id_ttl: Option<String>,
-    /// If the Secret-IDs generated for this role should be cluster local.
-    ///
-    /// Can't be changed after the Role has been created
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub enable_local_secret_ids: Option<bool>,
-    /// The TTL of the generated Tokens in seconds
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_ttl: Option<u64>,
-    /// The maximum TTL of generated Tokens in seconds
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_max_ttl: Option<u64>,
-    /// The Policies assigned to the generated Tokens
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_policies: Option<Vec<String>>,
-    /// Specifies blocks of IP-addresses that can authenticate using this role
-    /// and ties the tokens to these blocks as well
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_bound_cidrs: Option<Vec<String>>,
-    /// Sets an explicit maximum TTL after which every token will expire even
-    /// if it was renewed before
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_explicit_max_ttl: Option<u64>,
-    /// If the `default` Policy should not be set generated tokens
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_no_default_policy: Option<bool>,
-    /// The maximum Number of uses per generated Token, in it's lifetime
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_num_uses: Option<u64>,
-    /// The Period, if any, of the Tokens
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_period: Option<u64>,
-    /// The Type of Token that should be generated
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub token_type: Option<String>,
-}
-
-// TODO: Add test for this function
-/// Used to create or update an Approle-Role with the given options
-///
-/// # Arguments:
-/// * `client`: A valid vault-client session that is used to execute this request
-/// * `name`: The Name of the Role to modify/create
-/// * `opts`: The Options that should be applied to the role
-///
-/// [Vault-Documentation](https://www.vaultproject.io/api-docs/auth/approle#create-update-approle)
-pub async fn create_update(
-    client: &Client<impl AuthTrait>,
-    name: &str,
-    opts: ApproleOptions,
-) -> Result<(), Error> {
-    let path = format!("auth/approle/role/{}", name);
-
-    match client
-        .vault_request(reqwest::Method::POST, &path, Some(&opts))
-        .await
-    {
-        Err(e) => Err(e),
-        Ok(_) => Ok(()),
     }
 }

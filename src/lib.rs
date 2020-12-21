@@ -13,14 +13,12 @@ pub mod kv2;
 /// backend
 pub mod token;
 
+mod client;
+mod errors;
 mod internals;
 
-mod errors;
-
-use serde::Serialize;
-use url::Url;
-
-pub use errors::Error;
+pub use client::*;
+pub use errors::*;
 
 /// This trait needs to be implemented by all auth backends to be used for
 /// authenticating using that backend
@@ -50,6 +48,27 @@ pub trait Auth {
     /// time in an unsychronized way, but not while the Backend is doing a single
     /// Auth-Operation
     fn get_token(&self) -> String;
+    /// Returns if the current token can be renewed using this auth-backend.
+    /// This is used to decide whether or not to try to renew the session before
+    /// it is expired or letting the session expire and then simply obtaining a
+    /// new one the next time it is used.
+    ///
+    /// Safety:
+    /// This function is only called by a single, maybe two, threads.
+    fn is_renewable(&self) -> bool;
+    /// Returns the total duration for which the current token is valid for
+    /// in seconds
+    ///
+    /// Safety:
+    /// This function is only expected to be called by the background thread that
+    /// is responsible for renewing a token
+    fn get_total_duration(&self) -> u64;
+    /// This is used to actually renew the Tokens lease
+    ///
+    /// Safety:
+    /// This function is only expected to be called by the background thread that
+    /// renews the token
+    fn renew(&self, vault_url: &str) -> Result<(), Error>;
 }
 
 /// The RenewPolicy describes how the vault client should deal with expired
@@ -59,6 +78,15 @@ pub enum RenewPolicy {
     /// provided auth config, if the old one expired. This is a lazy operation,
     /// so it only checks if it needs a new session before making a request
     Reauth,
+    /// Renew causes the vault client to try and renew a token as long and as often as
+    /// possible without ever letting it actually expire.
+    /// The float should be a value between 0-1 and represents the percentage (0=0%, 1=100%)
+    /// of time that should be remaining before a session/token is renewed.
+    ///
+    /// Example:
+    /// With a threshold of 0.25 and a total Token Duration of 60m, the Token will be renewed
+    /// after 45m/ when only 15min are left.
+    Renew(f32),
     /// Nothing does nothing when the session expires. This will cause the client to always
     /// return a SessionExpired error when trying to request anything from vault
     Nothing,
@@ -79,120 +107,6 @@ impl Default for Config {
         Config {
             vault_url: "http://localhost:8200".to_string(),
             renew_policy: RenewPolicy::Reauth,
-        }
-    }
-}
-
-/// The Client struct represents a single Vault-Connection/Session that can be used for any
-/// further requests to vault
-pub struct Client<T: Auth> {
-    config: Config,
-    auth: T,
-    reauth_mutex: std::sync::Mutex<()>,
-}
-
-impl<T: Auth> Client<T> {
-    /// This function is used to obtain a new vault session with the given config and
-    /// auth settings
-    pub fn new(conf: Config, auth_opts: T) -> Result<Client<T>, Error> {
-        match auth_opts.auth(&conf.vault_url) {
-            Err(e) => return Err(e),
-            Ok(()) => {}
-        };
-
-        Ok(Client::<T> {
-            config: conf,
-            auth: auth_opts,
-            reauth_mutex: std::sync::Mutex::new(()),
-        })
-    }
-
-    /// A simple method to get the underlying vault session/client token
-    /// for the current vault session.
-    /// It is not recommended to use this function, but rather stick to other
-    /// more integrated parts, like the vault_request function
-    pub fn get_token(&self) -> String {
-        self.auth.get_token()
-    }
-
-    /// This function is used to check if the current
-    /// session is still valid and if not to renew
-    /// the session/obtain a new one and update
-    /// all data related to it
-    pub async fn check_session(&self) -> Result<(), Error> {
-        if !self.auth.is_expired() {
-            return Ok(());
-        }
-
-        // Take mutex to ensure only one thread can try to reauth at a time
-        let _data = self.reauth_mutex.lock().unwrap();
-        // If the mutex is acquired, check if the session still needs to be renewed or if another
-        // thread has already done this, in which case this one should just return as its all fine
-        // now
-        if !self.auth.is_expired() {
-            return Ok(());
-        }
-
-        let result = match self.config.renew_policy {
-            RenewPolicy::Reauth => self.auth.auth(&self.config.vault_url),
-            RenewPolicy::Nothing => Err(Error::SessionExpired),
-        };
-
-        return result;
-    }
-
-    /// This function is a general way to directly make requests to vault using
-    /// the current session. This can be used to make custom requests or to make requests
-    /// to mounts that are not directly covered by this crate.
-    pub async fn vault_request<P: Serialize>(
-        &self,
-        method: reqwest::Method,
-        path: &str,
-        body: Option<&P>,
-    ) -> Result<reqwest::Response, Error> {
-        self.check_session().await?;
-
-        let mut url = match Url::parse(&self.config.vault_url) {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(url) => url,
-        };
-        url = match url.join("v1/") {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(u) => u,
-        };
-        url = match url.join(path) {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(u) => u,
-        };
-
-        let token = self.auth.get_token();
-
-        let http_client = reqwest::Client::new();
-        let mut req = http_client
-            .request(method, url)
-            .header("X-Vault-Token", &token)
-            .header("X-Vault-Request", "true");
-
-        if body.is_some() {
-            req = req.json(body.unwrap());
-        }
-
-        let resp = match req.send().await {
-            Err(e) => return Err(Error::from(e)),
-            Ok(resp) => resp,
-        };
-
-        let status_code = resp.status().as_u16();
-
-        match status_code {
-            200 | 204 => Ok(resp),
-            _ => Err(Error::from(status_code)),
         }
     }
 }

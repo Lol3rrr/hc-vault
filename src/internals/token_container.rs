@@ -9,6 +9,7 @@ pub struct TokenContainer {
     token: std::sync::atomic::AtomicPtr<String>,
     start: std::sync::atomic::AtomicU64,
     duration: std::sync::atomic::AtomicU64,
+    renewable: std::sync::atomic::AtomicBool,
 }
 
 impl TokenContainer {
@@ -21,6 +22,7 @@ impl TokenContainer {
             token: std::sync::atomic::AtomicPtr::new(empty_ptr),
             start: std::sync::atomic::AtomicU64::new(0),
             duration: std::sync::atomic::AtomicU64::new(0),
+            renewable: std::sync::atomic::AtomicBool::new(false),
         }
     }
 
@@ -32,6 +34,11 @@ impl TokenContainer {
     /// Returns the duration for the Token
     pub fn get_duration(&self) -> u64 {
         self.duration.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Returns the renewable status for the Token
+    pub fn get_renewable(&self) -> bool {
+        self.renewable.load(std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Returns the Token itself
@@ -67,6 +74,12 @@ impl TokenContainer {
     pub fn set_duration(&self, new_duration: u64) {
         self.duration
             .store(new_duration, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    /// Updates the internal renewable status for the Token
+    pub fn set_renewable(&self, new_renewable: bool) {
+        self.renewable
+            .store(new_renewable, std::sync::atomic::Ordering::SeqCst)
     }
 
     /// Updates the internal token itself

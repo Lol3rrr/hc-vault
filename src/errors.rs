@@ -7,6 +7,10 @@ pub enum Error {
     ParseError(url::ParseError),
     /// ReqwestError is returned when the request made to vault itself fails
     ReqwestError(reqwest::Error),
+    /// IOError is returned by operations that have to do some sort of IO, like
+    /// the helper function for the kubernetes backend, which loads the JWT token
+    /// from a local file
+    IOError(std::io::Error),
     /// InvalidRequest is returned when the made to vault was missing data or was invalid/
     /// malformed data and therefore was rejected by vault before doing anything
     InvalidRequest,
@@ -35,6 +39,7 @@ impl fmt::Display for Error {
         match *self {
             Error::ParseError(ref cause) => write!(f, "Parse Error: {}", cause),
             Error::ReqwestError(ref cause) => write!(f, "Reqwest Error: {}", cause),
+            Error::IOError(ref cause) => write!(f, "IO Error: {}", cause),
             Error::InvalidRequest => write!(f, "Invalid Request: Invalid or Missing data"),
             Error::IsSealed => write!(
                 f,
@@ -58,6 +63,11 @@ impl From<reqwest::Error> for Error {
         Error::ReqwestError(cause)
     }
 }
+impl From<std::io::Error> for Error {
+    fn from(cause: std::io::Error) -> Error {
+        Error::IOError(cause)
+    }
+}
 /// This is only meant for status codes and assumes that the
 /// given u16 is a status-code from an http-request
 impl From<u16> for Error {
@@ -69,5 +79,35 @@ impl From<u16> for Error {
             503 => Error::IsSealed,
             _ => Error::Other,
         }
+    }
+}
+
+/// The possible errors returned by the Renew part of the Client
+pub enum RenewError {
+    /// Possible Errors returned by the Auth backend when you try to renew the
+    /// current token/session
+    AuthError(Error),
+    /// This is returned if you try to run the Renew session part but without
+    /// enabling the Renew Policy in the config
+    NotEnabled,
+    /// Returned when the current session can actually not be renewed
+    NotRenewable,
+}
+
+impl fmt::Display for RenewError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            RenewError::AuthError(ref cause) => {
+                write!(f, "Error returned by Auth-Backend: {}", cause)
+            }
+            RenewError::NotEnabled => write!(f, "The Renew Policy is not enabled"),
+            RenewError::NotRenewable => write!(f, "The current session can not be renewed"),
+        }
+    }
+}
+
+impl From<Error> for RenewError {
+    fn from(cause: Error) -> RenewError {
+        RenewError::AuthError(cause)
     }
 }
