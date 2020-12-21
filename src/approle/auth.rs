@@ -44,6 +44,25 @@ struct ApproleResponse {
     pub lease_id: String,
 }
 
+#[derive(Deserialize)]
+struct RenewAuth {
+    /// Whether or not the auth-session is renewable
+    pub renewable: bool,
+    /// The duration for which this session is valid
+    pub lease_duration: u64,
+    /// The policies associated with this session/token
+    pub policies: Vec<String>,
+    /// The actual Token that will also be needed/used for further
+    /// requests to vault to authenticate with this session
+    pub client_token: String,
+}
+
+#[derive(Deserialize)]
+struct RenewResponse {
+    /// The new auth data after renewal
+    pub auth: RenewAuth,
+}
+
 /// The Auth session for the approle backend, used by the vault client itself
 /// to authenticate using approle
 pub struct Session {
@@ -125,10 +144,75 @@ impl AuthTrait for Session {
         // token therefore updating it is safe
         self.token.set_token(token);
 
+        self.token.set_renewable(data.auth.renewable);
+
         // Update the Times afterwards to make sure that no thread could see
         // these new valid times and try to read the token before the update
         // is actually done, as these Times basically work as an indicator if
         // the token can be accessed or not
+        self.token.set_start(current_time);
+        self.token.set_duration(duration);
+
+        Ok(())
+    }
+
+    fn is_renewable(&self) -> bool {
+        self.token.get_renewable()
+    }
+
+    fn get_total_duration(&self) -> u64 {
+        self.token.get_duration()
+    }
+
+    fn renew(&self, vault_url: &str) -> Result<(), Error> {
+        let mut renew_url = match Url::parse(vault_url) {
+            Err(e) => {
+                return Err(Error::from(e));
+            }
+            Ok(url) => url,
+        };
+        renew_url = match renew_url.join("v1/auth/token/renew-self") {
+            Err(e) => {
+                return Err(Error::from(e));
+            }
+            Ok(u) => u,
+        };
+
+        let http_client = reqwest::blocking::Client::new();
+        let res = http_client
+            .post(renew_url)
+            .header("X-Vault-Token", self.token.get_token().unwrap())
+            .send();
+
+        let response = match res {
+            Err(e) => {
+                return Err(Error::from(e));
+            }
+            Ok(resp) => resp,
+        };
+
+        let status_code = response.status().as_u16();
+        if status_code != 200 && status_code != 204 {
+            return Err(Error::from(status_code));
+        }
+
+        let data = match response.json::<RenewResponse>() {
+            Err(e) => Err(Error::from(e)),
+            Ok(json) => Ok(json),
+        };
+
+        let data = data.unwrap();
+
+        let current_time = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let duration = data.auth.lease_duration;
+        let renewable = data.auth.renewable;
+
+        self.token.set_renewable(renewable);
+
+        // The times should again be set at the end after everything else is done already
         self.token.set_start(current_time);
         self.token.set_duration(duration);
 

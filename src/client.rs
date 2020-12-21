@@ -1,6 +1,7 @@
 use crate::Auth;
 use crate::Config;
 use crate::Error;
+use crate::RenewError;
 use crate::RenewPolicy;
 
 use serde::Serialize;
@@ -8,13 +9,19 @@ use url::Url;
 
 /// The Client struct represents a single Vault-Connection/Session that can be used for any
 /// further requests to vault
-pub struct Client<T: Auth> {
+pub struct Client<T>
+where
+    T: Auth,
+{
     config: Config,
     auth: T,
     reauth_mutex: std::sync::Mutex<()>,
 }
 
-impl<T: Auth> Client<T> {
+impl<T> Client<T>
+where
+    T: Auth,
+{
     /// This function is used to obtain a new vault session with the given config and
     /// auth settings
     pub fn new(conf: Config, auth_opts: T) -> Result<Client<T>, Error> {
@@ -23,11 +30,44 @@ impl<T: Auth> Client<T> {
             Ok(()) => {}
         };
 
-        Ok(Client::<T> {
+        let client = Client::<T> {
             config: conf,
             auth: auth_opts,
             reauth_mutex: std::sync::Mutex::new(()),
-        })
+        };
+
+        Ok(client)
+    }
+
+    /// This function will enter an infitive Loop and blocks the current thread.
+    /// It will do everything related to renewing the token/session. This will
+    /// idealy run inside it's own thread as to not block anything else important
+    pub fn renew_background(&self) -> Result<(), RenewError> {
+        let threshold = match self.config.renew_policy {
+            RenewPolicy::Renew(t) => t,
+            _ => return Err(RenewError::NotEnabled),
+        };
+
+        loop {
+            if !self.auth.is_renewable() {
+                return Err(RenewError::NotRenewable);
+            }
+
+            let total_duration = self.auth.get_total_duration();
+            let wait_percentage = 1.0 - threshold;
+
+            let wait_duration =
+                std::time::Duration::from_secs(((total_duration as f32) * wait_percentage) as u64);
+
+            std::thread::sleep(wait_duration);
+
+            match self.auth.renew(&self.config.vault_url) {
+                Ok(_) => {}
+                Err(e) => {
+                    return Err(RenewError::from(e));
+                }
+            };
+        }
     }
 
     /// A simple method to get the underlying vault session/client token
@@ -58,7 +98,7 @@ impl<T: Auth> Client<T> {
 
         let result = match self.config.renew_policy {
             RenewPolicy::Reauth => self.auth.auth(&self.config.vault_url),
-            RenewPolicy::Nothing => Err(Error::SessionExpired),
+            RenewPolicy::Nothing | RenewPolicy::Renew(_) => Err(Error::SessionExpired),
         };
 
         return result;

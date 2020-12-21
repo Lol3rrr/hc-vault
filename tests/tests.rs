@@ -1,6 +1,7 @@
 mod approle {
     mod auth;
     mod is_expired;
+    mod renew;
 }
 
 mod database {
@@ -9,12 +10,14 @@ mod database {
 
 mod general {
     mod reauth;
+    mod renew;
     mod vault_request;
 }
 
 mod kubernetes {
     mod auth;
     mod is_expired;
+    mod renew;
 }
 
 mod kv2 {

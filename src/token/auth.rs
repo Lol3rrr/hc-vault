@@ -21,6 +21,15 @@ impl AuthTrait for Session {
     fn auth(&self, _vault_url: &str) -> Result<(), Error> {
         Ok(())
     }
+    fn is_renewable(&self) -> bool {
+        true
+    }
+    fn get_total_duration(&self) -> u64 {
+        0
+    }
+    fn renew(&self, _vault_url: &str) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 impl Session {

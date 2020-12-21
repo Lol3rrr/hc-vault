@@ -68,7 +68,7 @@ pub trait Auth {
     /// Safety:
     /// This function is only expected to be called by the background thread that
     /// renews the token
-    fn renew(&self) -> Result<(), Error>;
+    fn renew(&self, vault_url: &str) -> Result<(), Error>;
 }
 
 /// The RenewPolicy describes how the vault client should deal with expired

@@ -81,3 +81,33 @@ impl From<u16> for Error {
         }
     }
 }
+
+/// The possible errors returned by the Renew part of the Client
+pub enum RenewError {
+    /// Possible Errors returned by the Auth backend when you try to renew the
+    /// current token/session
+    AuthError(Error),
+    /// This is returned if you try to run the Renew session part but without
+    /// enabling the Renew Policy in the config
+    NotEnabled,
+    /// Returned when the current session can actually not be renewed
+    NotRenewable,
+}
+
+impl fmt::Display for RenewError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            RenewError::AuthError(ref cause) => {
+                write!(f, "Error returned by Auth-Backend: {}", cause)
+            }
+            RenewError::NotEnabled => write!(f, "The Renew Policy is not enabled"),
+            RenewError::NotRenewable => write!(f, "The current session can not be renewed"),
+        }
+    }
+}
+
+impl From<Error> for RenewError {
+    fn from(cause: Error) -> RenewError {
+        RenewError::AuthError(cause)
+    }
+}

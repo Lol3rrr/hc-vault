@@ -41,6 +41,20 @@ struct KubernetesResponse {
     auth: KubernetesAuth,
 }
 
+#[derive(Deserialize)]
+#[allow(dead_code)]
+struct GeneralAuth {
+    client_token: String,
+    policies: Vec<String>,
+    lease_duration: u64,
+    renewable: bool,
+}
+
+#[derive(Deserialize)]
+struct RenewResponse {
+    auth: GeneralAuth,
+}
+
 /// The Auth session for the Kubernetes Backend, used by the vault client
 /// to authenticate requests
 pub struct Session {
@@ -114,10 +128,75 @@ impl AuthTrait for Session {
         // means of synchronization
         self.token.set_token(token);
 
+        self.token.set_renewable(data.auth.renewable);
+
         // Update the Times afterwards, as they are basically acting like a switch
         // that once they are "valid" again, every thread can read the token
         // agai. So once they are set we have to assume that threads will
         // immediately try to access the token
+        self.token.set_start(current_time);
+        self.token.set_duration(duration);
+
+        Ok(())
+    }
+
+    fn is_renewable(&self) -> bool {
+        self.token.get_renewable()
+    }
+
+    fn get_total_duration(&self) -> u64 {
+        self.token.get_duration()
+    }
+
+    fn renew(&self, vault_url: &str) -> Result<(), Error> {
+        let mut renew_url = match Url::parse(vault_url) {
+            Err(e) => {
+                return Err(Error::from(e));
+            }
+            Ok(url) => url,
+        };
+        renew_url = match renew_url.join("v1/auth/token/renew-self") {
+            Err(e) => {
+                return Err(Error::from(e));
+            }
+            Ok(u) => u,
+        };
+
+        let http_client = reqwest::blocking::Client::new();
+        let res = http_client
+            .post(renew_url)
+            .header("X-Vault-Token", self.token.get_token().unwrap())
+            .send();
+
+        let response = match res {
+            Err(e) => {
+                return Err(Error::from(e));
+            }
+            Ok(resp) => resp,
+        };
+
+        let status_code = response.status().as_u16();
+        if status_code != 200 && status_code != 204 {
+            return Err(Error::from(status_code));
+        }
+
+        let data = match response.json::<RenewResponse>() {
+            Err(e) => Err(Error::from(e)),
+            Ok(json) => Ok(json),
+        };
+
+        let data = data.unwrap();
+
+        let current_time = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        let duration = data.auth.lease_duration;
+        let renewable = data.auth.renewable;
+
+        self.token.set_renewable(renewable);
+
+        // The times should again be set at the end after everything else is done already
         self.token.set_start(current_time);
         self.token.set_duration(duration);
 
