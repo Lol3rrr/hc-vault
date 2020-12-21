@@ -7,6 +7,10 @@ pub enum Error {
     ParseError(url::ParseError),
     /// ReqwestError is returned when the request made to vault itself fails
     ReqwestError(reqwest::Error),
+    /// IOError is returned by operations that have to do some sort of IO, like
+    /// the helper function for the kubernetes backend, which loads the JWT token
+    /// from a local file
+    IOError(std::io::Error),
     /// InvalidRequest is returned when the made to vault was missing data or was invalid/
     /// malformed data and therefore was rejected by vault before doing anything
     InvalidRequest,
@@ -35,6 +39,7 @@ impl fmt::Display for Error {
         match *self {
             Error::ParseError(ref cause) => write!(f, "Parse Error: {}", cause),
             Error::ReqwestError(ref cause) => write!(f, "Reqwest Error: {}", cause),
+            Error::IOError(ref cause) => write!(f, "IO Error: {}", cause),
             Error::InvalidRequest => write!(f, "Invalid Request: Invalid or Missing data"),
             Error::IsSealed => write!(
                 f,
@@ -56,6 +61,11 @@ impl From<url::ParseError> for Error {
 impl From<reqwest::Error> for Error {
     fn from(cause: reqwest::Error) -> Error {
         Error::ReqwestError(cause)
+    }
+}
+impl From<std::io::Error> for Error {
+    fn from(cause: std::io::Error) -> Error {
+        Error::IOError(cause)
     }
 }
 /// This is only meant for status codes and assumes that the
