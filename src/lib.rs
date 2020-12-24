@@ -16,9 +16,11 @@ pub mod token;
 mod client;
 mod errors;
 mod internals;
+mod macros;
 
 pub use client::*;
 pub use errors::*;
+pub use macros::*;
 
 /// This trait needs to be implemented by all auth backends to be used for
 /// authenticating using that backend
