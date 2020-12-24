@@ -61,6 +61,10 @@ fn valid_new_kubernetes() {
         Err(e) => assert!(false, "Should not return error: '{}'", e),
         Ok(_) => assert!(true),
     };
+
+    assert_eq!("testToken", tmp_auth.get_token());
+    assert_eq!(120, tmp_auth.get_total_duration());
+    assert_eq!(true, tmp_auth.is_renewable());
 }
 
 #[test]
