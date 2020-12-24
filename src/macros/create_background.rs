@@ -7,7 +7,7 @@
 /// * `conf`: The Configuration to use when obtaining the Vault-Session
 /// * `auth`: The Auth instance to use with this Vault-Session
 #[macro_export]
-macro_rules! create_background {
+macro_rules! create_renewing_session {
     ($conf: ident, $auth: ident) => {{
         let config: Config = $conf;
         let auth = $auth;

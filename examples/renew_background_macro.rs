@@ -12,7 +12,8 @@ fn main() {
         ..Default::default()
     };
 
-    let client_arc = hc_vault::create_background!(conf, auth);
+    #[allow(unused_variables)]
+    let client_arc = hc_vault::create_renewing_session!(conf, auth);
 
     loop {
         std::thread::sleep(std::time::Duration::from_secs(10))
