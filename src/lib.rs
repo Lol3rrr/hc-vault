@@ -1,5 +1,5 @@
 #![warn(missing_docs)]
-//! Async, highly concurrent crate to interact with vault and its mounts
+//! Async, highly concurrent crate to interact with vault and its backends
 
 /// The Approle Auth-Backend in vault
 pub mod approle;
