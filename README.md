@@ -1,6 +1,12 @@
 # hc-vault
 A rust library to interact with hashicorp vault
 
+## Introduction
+This crate allows you to easily interact with Hashicorp's Vault, by giving you
+easy to configure and use Auth-Methods and also having the most used Secret-Backends
+already in the crate as modules, while also allowing for custom Requests to Vault for
+currently not added Backends or custom Backends.
+
 ## Example
 ### Obtaining a new Session using approle-auth
 ```rust
