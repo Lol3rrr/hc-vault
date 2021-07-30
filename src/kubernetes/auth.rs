@@ -105,7 +105,7 @@ impl AuthTrait for Session {
 
         let status_code = response.status().as_u16();
         if status_code != 200 && status_code != 204 {
-            return Err(Error::from(status_code));
+            return Err(Error::from_status_code(status_code));
         }
 
         let data = match response.json::<KubernetesResponse>() {
@@ -177,7 +177,7 @@ impl AuthTrait for Session {
 
         let status_code = response.status().as_u16();
         if status_code != 200 && status_code != 204 {
-            return Err(Error::from(status_code));
+            return Err(Error::from_status_code(status_code));
         }
 
         let data = match response.json::<RenewResponse>() {

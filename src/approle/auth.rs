@@ -1,10 +1,10 @@
 use serde::{Deserialize, Serialize};
-use std::time::SystemTime;
 use url::Url;
 
-use crate::internals;
-use crate::Auth as AuthTrait;
-use crate::Error;
+use crate::{
+    internals::{self, utils},
+    Auth as AuthTrait, Error,
+};
 
 /// The Config for approle login
 #[derive(Clone, Serialize)]
@@ -74,10 +74,7 @@ pub struct Session {
 impl AuthTrait for Session {
     fn is_expired(&self) -> bool {
         let start_time = self.token.get_start();
-        let current_time = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let current_time = utils::now_timestamp();
 
         let elapsed = current_time - start_time;
         let duration = self.token.get_duration();
@@ -97,46 +94,20 @@ impl AuthTrait for Session {
         }
     }
     fn auth(&self, vault_url: &str) -> Result<(), Error> {
-        let mut login_url = match Url::parse(vault_url) {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(url) => url,
-        };
-        login_url = match login_url.join("v1/auth/approle/login") {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(u) => u,
-        };
+        let login_url = Url::parse(vault_url)?.join("v1/auth/approle/login")?;
 
         let http_client = reqwest::blocking::Client::new();
-        let res = http_client.post(login_url).json(&self.approle).send();
-
-        let response = match res {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(resp) => resp,
-        };
+        let response = http_client.post(login_url).json(&self.approle).send()?;
 
         let status_code = response.status().as_u16();
         if status_code != 200 && status_code != 204 {
-            return Err(Error::from(status_code));
+            return Err(Error::from_status_code(status_code));
         }
 
-        let data = match response.json::<ApproleResponse>() {
-            Err(e) => Err(Error::from(e)),
-            Ok(json) => Ok(json),
-        };
-
-        let data = data.unwrap();
+        let data: ApproleResponse = response.json()?;
 
         let token = data.auth.client_token;
-        let current_time = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let current_time = utils::now_timestamp();
         let duration = data.auth.lease_duration;
 
         // Safety:
@@ -165,48 +136,22 @@ impl AuthTrait for Session {
     }
 
     fn renew(&self, vault_url: &str) -> Result<(), Error> {
-        let mut renew_url = match Url::parse(vault_url) {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(url) => url,
-        };
-        renew_url = match renew_url.join("v1/auth/token/renew-self") {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(u) => u,
-        };
+        let renew_url = Url::parse(vault_url)?.join("v1/auth/token/renew-self")?;
 
         let http_client = reqwest::blocking::Client::new();
-        let res = http_client
+        let response = http_client
             .post(renew_url)
             .header("X-Vault-Token", self.token.get_token().unwrap())
-            .send();
-
-        let response = match res {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(resp) => resp,
-        };
+            .send()?;
 
         let status_code = response.status().as_u16();
         if status_code != 200 && status_code != 204 {
-            return Err(Error::from(status_code));
+            return Err(Error::from_status_code(status_code));
         }
 
-        let data = match response.json::<RenewResponse>() {
-            Err(e) => Err(Error::from(e)),
-            Ok(json) => Ok(json),
-        };
+        let data: RenewResponse = response.json()?;
 
-        let data = data.unwrap();
-
-        let current_time = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap()
-            .as_secs();
+        let current_time = utils::now_timestamp();
         let duration = data.auth.lease_duration;
         let renewable = data.auth.renewable;
 

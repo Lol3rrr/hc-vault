@@ -1,8 +1,4 @@
-use crate::Auth;
-use crate::Config;
-use crate::Error;
-use crate::RenewError;
-use crate::RenewPolicy;
+use crate::{Auth, Config, Error, RenewError, RenewPolicy};
 
 use serde::Serialize;
 use url::Url;
@@ -115,24 +111,9 @@ where
     ) -> Result<reqwest::Response, Error> {
         self.check_session().await?;
 
-        let mut url = match Url::parse(&self.config.vault_url) {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(url) => url,
-        };
-        url = match url.join("v1/") {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(u) => u,
-        };
-        url = match url.join(path) {
-            Err(e) => {
-                return Err(Error::from(e));
-            }
-            Ok(u) => u,
-        };
+        let mut url = Url::parse(&self.config.vault_url)?;
+        url = url.join("v1/")?;
+        url = url.join(path)?;
 
         let token = self.auth.get_token();
 
@@ -142,20 +123,16 @@ where
             .header("X-Vault-Token", &token)
             .header("X-Vault-Request", "true");
 
-        if body.is_some() {
-            req = req.json(body.unwrap());
+        if let Some(body) = body {
+            req = req.json(body);
         }
 
-        let resp = match req.send().await {
-            Err(e) => return Err(Error::from(e)),
-            Ok(resp) => resp,
-        };
-
+        let resp = req.send().await?;
         let status_code = resp.status().as_u16();
 
         match status_code {
             200 | 204 => Ok(resp),
-            _ => Err(Error::from(status_code)),
+            _ => Err(Error::from_status_code(status_code)),
         }
     }
 }

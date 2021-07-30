@@ -68,16 +68,17 @@ impl From<std::io::Error> for Error {
         Error::IOError(cause)
     }
 }
-/// This is only meant for status codes and assumes that the
-/// given u16 is a status-code from an http-request
-impl From<u16> for Error {
-    fn from(cause: u16) -> Error {
-        match cause {
-            400 => Error::InvalidRequest,
-            403 => Error::Unauthorized,
-            404 => Error::NotFound,
-            503 => Error::IsSealed,
-            _ => Error::Other,
+
+impl Error {
+    /// Creates the corresponding Error based on the given Status-Code returned
+    /// by the Vault-API
+    pub fn from_status_code(code: u16) -> Self {
+        match code {
+            400 => Self::InvalidRequest,
+            403 => Self::Unauthorized,
+            404 => Self::NotFound,
+            503 => Self::IsSealed,
+            _ => Self::Other,
         }
     }
 }
